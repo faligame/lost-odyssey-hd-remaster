@@ -31,7 +31,7 @@ Xenia is an excellent emulator and this project would not exist without the work
 An emulator translates the game's code while it runs. A static recompilation translates it *once*, ahead of time, into a normal PC executable. The result runs the game's logic as native x86-64 with no interpreter or JIT in the way — but more importantly for this project, it makes the game *modifiable* in ways an emulator cannot easily match:
 
 - Fixes become toggles in an options menu instead of external patch files.
-- The renderer is part of the build, so it can be changed — which is how a game hard-limited to 720p by console memory ends up rendering native 1080p.
+- The renderer is part of the build, so it can be changed — which is how a game hard-limited to 720p by console memory ends up rendering at anything from 900p to 4K with its interface intact.
 - The output is a single executable that behaves like a PC game.
 
 The cost is that the work is per-title and substantial. Xenia runs thousands of games; this runs one.
@@ -39,6 +39,16 @@ The cost is that the work is per-title and substantial. Xenia runs thousands of 
 ### Does it run better than the console?
 
 Yes, in the ways you would expect from native code and a modern GPU: 60 fps, higher resolutions, anisotropic filtering, supersampling, and no loading from optical media.
+
+### Why does the first launch take a minute or two?
+
+The graphics driver has to compile about two thousand pipelines before the first frame. The port keeps the result on disk, so this happens once per resolution and renderer. After that, startup takes a few seconds.
+
+The cache takes roughly 230 MB per resolution on Direct3D 12 and 30 MB on Vulkan. It is safe to delete; the next launch rebuilds it.
+
+### Which resolution should I pick?
+
+The one your monitor has. Each preset costs what its own pixel count costs, so 1080p is noticeably lighter than 1440p, and 1800p lighter than 4K. The interface is identical at all of them.
 
 ### Linux? Steam Deck? Android?
 

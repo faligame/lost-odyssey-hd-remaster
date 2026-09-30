@@ -6,6 +6,61 @@ Newest first.
 
 ## September 2026
 
+### Compiled pipelines kept on disk — 30 Sep
+
+Startup no longer depends on the graphics driver's cache. The port stores the compiled pipelines itself — a pipeline library on Direct3D 12, a serialised pipeline cache on Vulkan — one file per resolution. [Details →](technical.md#9-keeping-compiled-pipelines-on-disk)
+
+Measured on the development machine: the pipeline step went from about two minutes to about three seconds on Direct3D 12, and from about a minute to about seven seconds on Vulkan. The first launch at each resolution still compiles.
+
+### Seven resolutions, on both renderers — 30 Sep
+
+The fractional render scale now covers every quarter step that makes sense: 720p, 900p, 1080p, 1440p, 1620p, 1800p and 4K, selectable from the game's Configuration screen. Vulkan has it too.
+
+The in-between presets — ×1.25 and ×2.25 — broke in ways ×1.5 never had: dotted bars across the image, and thin lines in the 3D. There were two causes, both in the compute shaders, and a small Python model of the whole resolve-and-load path found them. [The three traps with odd scales →](technical.md#1-rendering-above-720p)
+
+Lightly tested so far. It needs a proper pass through fog, depth of field, text and the map at each of the odd scales.
+
+### Native 1080p retired — 29–30 Sep
+
+The mode that made the game itself render 1920×1080 is gone: the enlarged EDRAM, the sliding window, the canvas pin with its seven rules, and about eighty-five hooks in the game code. The plugin's EDRAM is the console's size again, which gave back roughly 290 MB of video memory.
+
+It was removed because the fractional scale does the same job with an exact interface. The scenes that had never been right — a tutorial box that spilled off-screen, a callout line, animated text in the dream sequences — are correct at ×1.5 without a single rule. [Why →](technical.md#1-rendering-above-720p)
+
+### 1080p as a ×1.5 render scale — 29 Sep
+
+The game stays at 720p and the plugin renders every draw at one and a half times the size. Until now the scale had to be a whole number, which meant rendering 1440p to show 1080p.
+
+Done in two steps. First, the plugin's resolve and texture-load shaders, which the SDK ships only as compiled blobs, were made buildable from Xenia's sources, and the build was proven byte-identical to those blobs before anything was changed. Then the scale itself: storage stays in the emulator's format at the next whole factor, and only the sub-texels that exist are filled.
+
+### Fonts redrawn from vector outlines — 29 Sep
+
+The game's font atlases, redrawn at four times the resolution from the typefaces they were made from, rather than upscaled. Each font's size, weight and outline are fitted to the original glyphs, and every glyph lands in its original cell. [How →](technical.md#12-rebuilding-the-fonts-instead-of-upscaling-them)
+
+An upscaled version came first and looked sharper but not clean. This one does.
+
+### Every texture, straight from the discs — 29 Sep
+
+The port can now write out every texture in the game — 16,276 of them, from all four discs, in about ninety seconds — without the game having to load them. File names carry the hash the texture pack uses, and 1,487 of the 1,503 textures previously dumped in-game match it exactly. Colour textures, normal maps and lightmaps are sorted into separate folders. [How →](technical.md#11-every-texture-without-playing-the-game)
+
+An upscaled texture pack is being built on top of this. It is work in progress.
+
+### No random encounters — 28–29 Sep
+
+A toggle that stops random battles and leaves scripted ones alone. There was nothing to port, so the check had to be found: through the battle setup, a state machine, the game's Unreal script and finally a native step counter on the field controller. [The hunt →](technical.md#10-finding-the-random-encounter-check)
+
+Tested by walking around for several minutes with no encounters, and then triggering a scripted fight, which ran normally.
+
+Also tried: the "partial debug menu" patch from the Xenia patch list. In this port it breaks the game, and it has been left out.
+
+### Two session-ending crashes, and discs changing for real — 27–28 Sep
+
+- **A leak.** Finished threads were never freed, which exhausted a memory region after four to twenty minutes. Fixed in the SDK copy the port builds against. Afterwards: 26 minutes of play with that region flat.
+- **An audio race.** A crash in the loading screen after an early boss, from the audio engine following a sound-bank slot that was still being filled. Fixed without touching what the game does. Three runs out of three got through it, with a watcher logging the race being absorbed each time. [Both →](technical.md#13-two-crashes-worth-writing-down)
+- **Real disc changes.** After that boss the game asked for disc 2, and later, from another save, for disc 3. Both were mounted without a prompt, followed by 41 minutes of play on disc 3.
+- **Saves from an emulator.** Saves copied from an emulator crashed the save list, because they lack a small header file the SDK expects per slot. The port now writes any that are missing at startup.
+- **A crash reporter.** On a crash the port writes a report with the call stack, in which each recompiled function carries its original Xbox 360 address.
+- **Turbo up to 8×.**
+
 ### All four discs, and discs as ISO or GOD — 11 Sep
 
 Disc changes now work. When the game asks for another disc, the port finds it, mounts it and lets the game continue, with no prompt.
@@ -34,7 +89,7 @@ The game's Configuration screen now has four more tabs — Graphics, Patches, Ex
 
 An optional toggle that enables Save in the System menu away from save points, using the game's own save flow. Tested by saving far from a save point, reloading in the same place and moving normally, and confirming that with the option off Save is greyed out again away from save points and still available at real ones.
 
-Built by wrapping the menu's permission setter and its task rather than faking a save point. The table and functions involved were located by the published research of the [LostOdysseyRecomp](https://github.com/freefrank/LostOdysseyRecomp) project.
+Built by wrapping the menu's permission setter and its task rather than faking a save point.
 
 ### SMAA 1x on both renderers — 11 Sep
 
@@ -43,6 +98,8 @@ The reference SMAA implementation, unmodified, runs as three compute passes on t
 The Vulkan validation layers turned up a storage-image format mismatch that the driver had been hiding. Fixing it properly meant giving SMAA its own image in the presenter's output format. TAA was evaluated and postponed.
 
 ### Vulkan reaches parity — 7 Sep
+
+*The native 1080p mode and its canvas pin described here were retired on 30 Sep. The shared texture replacement remains.*
 
 Native 1080p and texture replacement now work on Vulkan as well as Direct3D 12. The two renderers are feature-equivalent.
 
@@ -88,6 +145,8 @@ The first thing that went through it: the button glyph atlas. On-screen prompts 
 
 ### 1080p native on Direct3D 12 — late Aug
 
+*Retired on 30 Sep in favour of the fractional render scale.*
+
 The headline feature, and the hardest. The game now renders a real 1920×1080 frame rather than a stretched 720p one.
 
 - Emulated EDRAM enlarged from 2048 to 16384 tiles, with widened render-target base fields.
@@ -95,7 +154,7 @@ The headline feature, and the hardest. The game now renders a real 1920×1080 fr
 - The resolve shaders' hardcoded wrap constant binary-patched, with the DXBC checksum recomputed.
 - The canvas pin: rules applied per draw call that detect the game's 2D layer and retarget it at the larger canvas, so the HUD and menus follow the resolution instead of sitting in a corner at original size.
 
-[Full write-up →](technical.md#1-why-1080p-is-hard-on-a-360-game-and-what-it-takes)
+[Full write-up →](technical.md#1-rendering-above-720p)
 
 ### Game patches as runtime toggles — 30 Aug
 
@@ -117,9 +176,11 @@ First fully playable build: main menu, gameplay, saves, achievements.
 
 ## Planned
 
+- A thorough pass over the in-between resolutions (900p, 1620p, 1800p) on both renderers
+- The upscaled texture pack
 - A Linux build
 - Retire the F2 overlay, now that the settings live in the game's own Configuration screen
-- Verify disc changes at real chapter boundaries, and a full playthrough across the four discs
+- A full playthrough across the four discs, including the change to disc 4
 - Test Games on Demand packages
-- Remaining UI polish: 1440p overlay artifacts, save list scrolling
-- The two unported Xenia patches (ultrawide, debug menu)
+- Remaining UI polish: save list scrolling
+- Ultrawide support, from the one Xenia patch still unported

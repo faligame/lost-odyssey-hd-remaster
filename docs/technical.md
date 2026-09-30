@@ -4,7 +4,7 @@ Notes on the parts of this port that were genuinely hard. Written for anyone doi
 
 ---
 
-## 1. Why 1080p is hard on a 360 game, and what it takes
+## 1. Rendering above 720p
 
 ### The constraint
 
@@ -28,41 +28,67 @@ colour + depth            = 3264 tiles   ✗ needs 16 MB
 
 This is *why* Lost Odyssey renders at 720p. It is not an engine limitation or an artistic choice; 1080p does not physically fit in the console. Every 360 game that renders at 1080p either uses a single buffer format that fits, or renders in predicated tiles.
 
-Under emulation, the EDRAM is just a buffer in host memory — so you can make it bigger. The problem is everything downstream that assumed it wasn't.
+Under emulation, the EDRAM is just a buffer in host memory, so the limit is gone. There are two ways to use that, and this port has done both.
 
-### Step 1 — enlarge the EDRAM, and the fields that address it
+### First attempt: make the game itself render 1080p (retired)
 
-The fork raises the emulated EDRAM to **16384 tiles (80 MB)** and widens the render-target base fields in `RB_COLOR_INFO` / `RB_DEPTH_INFO` from the console's 11 bits to 13. That alone gets you a buffer large enough. It also breaks the resolve path.
+The first version of this port did the obvious thing: it made the game render a real 1920×1080 frame. It worked, it shipped in the port for a month, and it has been removed. It is worth describing because the reasons it failed apply to any 360 game.
 
-### Step 2 — the resolve shaders don't know about your bigger buffer
+It took three pieces.
 
-The GPU plugin ships **precompiled** compute shaders that copy resolved tiles out of EDRAM. They take the source tile base as a shader constant, and that constant is an **11-bit field** — because on real hardware it can never exceed 2048. Any base past 2048 wraps around and you resolve from the wrong place.
+**A bigger EDRAM.** The emulated EDRAM went from 2048 to 16384 tiles, and the render-target base fields in `RB_COLOR_INFO` / `RB_DEPTH_INFO` from the console's 11 bits to 13.
 
-Recompiling those shaders was not an option (they're shipped as compiled blobs). Two things made it tractable:
+**Resolve shaders that did not know about it.** The GPU plugin ships precompiled compute shaders that copy finished tiles out of EDRAM. They take the source tile as an 11-bit constant and wrap addresses with a hardcoded `2048 tiles` literal. The port bound a sliding 2048-tile window over the big buffer so the shaders kept their 11-bit view, and binary-patched the literal — recomputing the DXBC container checksum, and rewriting the one `OpConstant` in the SPIR-V.
 
-**A sliding window.** Instead of pointing the shaders at an 80 MB buffer, the resolve and clear paths bind a **2048-tile window** into it, and pass a base relative to that window. The window is chosen per resolve from the tile the operation actually touches. The shaders keep their 11-bit world view and never know the buffer is forty times larger.
+**A canvas pin.** Enlarge the render target and the 3D scene fills it, because the game's projection matrices are resolution-independent. The 2D layer does not move. Menus, HUD and subtitles are authored against a fixed 1280×720 canvas, with orthographic projections that bake those numbers in. So every draw had to be inspected, classified as 2D or not, and rewritten: viewport, scissor, projection constants. That grew to seven rules in the GPU plugin and around eighty-five hooks in the game code.
 
-On D3D12 this is a matter of descriptor offsets. On Vulkan it needs **eight descriptor sets**, one per window, each with its own `VkDescriptorBufferInfo::offset` — and a subtlety that cost a debugging session: the Vulkan clear path issues *two* dispatches, depth and colour, with the descriptor bound once before both. Depth and colour can live in different windows. It has to be rebound per dispatch. (D3D12 uses two separate descriptors, so the bug doesn't exist there.)
+**Why it was retired.** The pin worked on everything that was a plain orthographic draw. But part of this game's interface is laid out on the CPU against the design canvas, and only then handed to the GPU as finished vertices: a tutorial box sized to its text, a callout line from a label to a point on a 3D target, letters that fly in one at a time. Each of those needed its own rule, each rule risked breaking another screen, and after weeks there was always one more.
 
-**Binary-patching the modulus.** The shaders also carry a hardcoded wrap constant — `2048 tiles × 1280 dwords = 2621440` — used to fold addresses back into EDRAM. That single literal has to become the real buffer size.
+The lesson, for anyone about to start a native-resolution patch: if the game's interface is computed against a design canvas, do not move the canvas. Scale the whole render instead.
 
-For **DXBC** this means finding the constant, replacing it, and recomputing the container's MD5-derived checksum, or the driver rejects the blob. For **SPIR-V** it is much easier: SPIR-V has no checksum, so it's a matter of walking the instruction stream, locating the one `OpConstant` with that literal, and rewriting the word. Both patchers assert that exactly one candidate exists, so a future SDK version that changes the shaders fails loudly instead of silently corrupting them. The results are validated with `spirv-val`.
+### What replaced it: a fractional render scale
 
-The scaled shader variants are deliberately left alone: at supersampled presets the guest still renders its original 720p canvas, never exceeds 2048 tiles, and wrapping there is correct behaviour.
+Xenia-derived GPU plugins already have a *draw resolution scale*. The game keeps rendering 1280×720 as far as it knows. The host multiplies everything by an integer N: render targets, viewports, scissors, and the textures the game resolves its frames into, which are kept in a parallel address space with N×N host texels per guest texel. The interface is exact, because the game is not told anything changed.
 
-### Step 3 — the canvas pin, or: why your HUD is in the corner
+The catch is "integer". With N = 2 you render 1440p. If your monitor is 1080p, you render 1440p and throw almost half of those pixels away.
 
-This is the part that surprises people, and it is worth understanding before attempting a native-resolution patch on any 360 game.
+The port extends that mechanism to quarter steps. The scale is `q / 4`: 5 is ×1.25 (900p), 6 is ×1.5 (1080p), 9 is ×2.25 (1620p), 10 is ×2.5 (1800p). Quarters are not arbitrary. An EDRAM tile is 80×16 samples and resolves work in blocks of 8 pixels, and both have to stay whole numbers after scaling; a quarter step keeps them whole, a finer one does not.
 
-Enlarge the render target and the 3D scene fills it correctly — the game's own projection matrices are resolution-independent. But the **2D layer does not move**. Menus, HUD, subtitles and full-screen effects are authored against a fixed 1280×720 canvas, with orthographic projections whose constants bake those dimensions in. Point that at a 1920×1080 target and the interface renders at its original pixel size, anchored in one corner, surrounded by empty space.
+**The storage does not change.** This is the decision that made it tractable. Scaled textures keep the emulator's layout, with a storage factor `S = ceil(q / 4)`. At ×1.5, a guest texel still owns a 2×2 block of storage; only some of those sub-texels are filled. Addresses, buffers and paging stay as they were, and the integer scales keep running the original code path untouched.
 
-You cannot fix this by scaling the output, because the 3D and 2D layers need *different* treatment in the same frame. It has to be done per draw call, which means: intercept each draw, work out whether it belongs to the 2D layer, and if so rewrite its state to target the larger canvas.
+**The mapping.** A length of `n` guest pixels becomes `(q·n + 1) >> 2` host pixels. Host pixel `h` belongs to guest pixel `(4h + 2) / q`. So at ×1.5 guest pixels are alternately one and two host pixels wide, and a tile of 80 samples is exactly 120.
 
-The fork does this with a set of rules applied inside the draw path, roughly 545 lines across three hook points in the command processor — three, rather than one, because the rules need different context: one of them requires the vertex shader to have been analysed already, since it decides by inspecting the projection's span.
+Vertically that is all there is to it: guest row `g` owns a run of host rows, stored in the first rows of its storage block.
 
-The rules cover: detecting orthographic 2D draws from their projection constants, un-shrinking viewports that were sized for the small canvas, scaling scissor rectangles, correcting NDC mapping, and invalidating the shader constant buffers afterwards so the rewritten values actually reach the GPU.
+Horizontally there is a constraint. The 360's tiled texture layout keeps short runs of texels — 8, 4, 2 or 1, depending on the format — contiguous in memory, and the compute shaders copy whole runs at a time. So the horizontal mapping is done in groups of `4 / gcd(q, 4)` of those units, chosen so that a group is a whole number of host runs. Run `r` of the group goes into storage slot `r`. Every slot then holds a contiguous, aligned run of host pixels, and the shaders can still copy a run at a time.
 
-Notably, this code touches **no graphics API at all** — it manipulates the emulated GPU register file. Porting it from D3D12 to Vulkan is a single-line difference: where D3D12 marks its float constant buffers stale with a flag, Vulkan clears bits in a bitmask. That is the entire backend coupling of the most intricate code in the project.
+**What had to change.** The viewport becomes fractional. Scissors, point sizes, polygon offset and occlusion sample counts follow the new formula. The EDRAM tile seen by the pixel shaders becomes `20q × 4q` samples. The resolve, clear and texture-load compute shaders learn the mapping. The shader translators scale their per-pixel address arithmetic. It only exists on the exact EDRAM paths — pixel-shader interlock on Direct3D 12, fragment-shader interlock on Vulkan — which are the ones this game needs anyway (section 3).
+
+**What it costs.** 1080p is 56% of the pixels of 1440p, and that is what the GPU now shades. The resolved textures still use the ×2 storage, so video memory sits between the two. Dropping the enlarged EDRAM of the first attempt gave back roughly 290 MB.
+
+### Building the Xenos shaders from source
+
+None of that was possible while the resolve and texture-load shaders existed only as compiled blobs. That is how the SDK ships them, and it is why the first attempt patched binaries.
+
+The sources are in Xenia, written in XeSL — a thin macro layer that compiles as both HLSL and GLSL. The port carries a copy under Xenia's BSD licence and a build script: `fxc` for DXBC, `glslang` followed by `spirv-opt` for SPIR-V.
+
+Before changing a line, the script was proven against the blobs it was replacing. All 109 DXBC shaders came out byte-identical to the SDK's. The SPIR-V came out equivalent, differing only in how a newer optimizer numbers its IDs. Only then were the shaders edited.
+
+### Three traps with odd scales
+
+×1.5 worked first, and it hid three bugs. With an even `q`, a lot of things line up by accident. At ×1.25 and ×2.25 they do not, and the screen filled with bars.
+
+- **A difference of two addresses, held in an unsigned integer.** The texture loader reads two runs per thread, and computes the second as an offset from the first, shifted down to index a buffer. In the 360's tiled layout, runs are *not* in increasing memory order along X on half the rows. With an odd scale, the second run can sit before the first. The difference goes negative, the shift mangles it, and the result is 4-pixel bars every 40 pixels on alternate groups of rows. The fix is to shift both addresses before subtracting.
+- **Assuming neighbouring pixels are neighbours in EDRAM.** A scaled tile is `20q` samples wide. With an odd `q` that is not a multiple of 8, so a run of 8 samples crosses into the next tile, which lives somewhere else. Worse, the depth half of a tile is `10q` samples, not a multiple of 4, and the fast depth resolve indexed four pixels at a time — so every depth resolve was off by two pixels. Under a fractional scale the resolves now read EDRAM one pixel at a time. They are cheap, and it ends the problem for every format at once.
+- **Groups are aligned to the destination.** A resolve that starts in the middle of a group would leave the first partial run unwritten. It has not been seen in Lost Odyssey; the port logs a warning if it ever happens.
+
+### A model that catches them in seconds
+
+Each of those bugs looks the same in the game: stripes. What separated them was a small Python model of the whole path — EDRAM, resolve, scaled storage, texture load — using the same integer arithmetic as the shaders, with every host pixel carrying its own coordinates as its value. Run the path, and check that each pixel of the loaded texture holds the coordinates it should.
+
+It reports exactly which columns are wrong, for which format, at which scale. From a report of "some thin lines in the 3D", it pinned down the depth offset and the tile crossing without another test run.
+
+The other half of the method is measuring the artifact. Take a screenshot, average each column, subtract a running median, and look at which period carries the energy. A period of 40 host pixels at ×1.25 is 32 guest pixels, which is a texture tile: the bug is in the texture loader. A period of 100 is `20q`: the bug is in EDRAM addressing.
 
 ---
 
@@ -133,11 +159,12 @@ REX_EXTERN(sub_82B88020) {         // replaces it at link time
 }
 ```
 
-No generated code is edited, nothing is byte-patched, and it links without duplicate symbols. Three features in this port are built this way:
+No generated code is edited, nothing is byte-patched, and it links without duplicate symbols. Several features in this port are built this way:
 
 - **Save anywhere** wraps the System menu's permission setter and its menu task, so the Save row stays enabled away from save points and the game's own permission comes back when the option is turned off.
 - **The settings tabs** wrap the Configuration screen's task, to know every frame whether the screen is open and interactive.
 - **Disc changes** wrap the game's one call site of `XamSwapDisc`.
+- **No random encounters** wraps the field controller's step counter (section 10).
 
 ---
 
@@ -179,7 +206,96 @@ Two lessons from getting there:
 - **Mount order matters.** Mounting a different disc early in startup crashed the game on launch. The SDK still reads `game:\default.xex` while it prepares the module, and at that moment it found another disc's executable. Anything that changes the mounted disc has to wait until the module is prepared.
 - **Check what you are given.** A folder labelled `disc2` on the development machine turned out to be a second copy of disc 1: every file hashed identical. Reading the real disc 2 image straight out of its zip archive — streaming, without extracting it — is what showed which files genuinely differ, and it is also why the port trusts executable headers rather than names.
 
-Validated so far: a disc change forced by booting with disc 2 mounted, where the game immediately asked for disc 1, got it, and continued; and a full boot from an ISO image, including the in-game settings reading their assets from it. Not yet exercised: a disc change at a real chapter boundary, a change between ISO images, and Games on Demand packages.
+Validated so far: a disc change forced by booting with disc 2 mounted, where the game immediately asked for disc 1, got it, and continued; a full boot from an ISO image, including the in-game settings reading their assets from it; and real changes during play — the game asked for disc 2 after an early boss and for disc 3 from a later save, and both were mounted without a prompt. Not yet exercised: the change to disc 4, a change between ISO images, and Games on Demand packages.
+
+---
+
+## 9. Keeping compiled pipelines on disk
+
+The plugin inherits a persistent store from Xenia: one file of translated shaders, and one file of pipeline *descriptions* — which shaders, which blend state, which formats. At startup it reads the descriptions and asks the driver to create every pipeline again, so nothing stutters later.
+
+That leaves the expensive step, compiling, to the driver's own cache. For Lost Odyssey that is about 2,100 pipelines. In the logs of this port the same step took either 0.3 seconds or between 73 and 134 seconds, depending only on whether the driver's cache hit. It missed after every resolution change, because each render scale produces different shader code, and sometimes it missed with nothing changed at all.
+
+So the port stores the compiled result itself:
+
+- **Direct3D 12:** an `ID3D12PipelineLibrary`. Each pipeline is looked up by name before it is created, and stored after. The name is a hash of the checksums of its shaders plus its description, so a pipeline whose shaders changed simply is not found and gets compiled fresh.
+- **Vulkan:** a `VkPipelineCache`, serialised to disk and handed to every `vkCreateGraphicsPipelines` call. Its header is checked against the device and driver before it is trusted.
+
+There is one file per title, render path and scale. It is written right after the startup batch, not only on exit, so a crash does not throw the work away, and it is written to a temporary file and renamed. If most lookups miss — after a change to the shader translator, say — the library is rebuilt from the pipelines that are alive, so stale entries do not pile up.
+
+The cost is disk: roughly 230 MB per resolution on Direct3D 12, where the exact-EDRAM pixel shaders are large, and 30 MB on Vulkan. It is a cache. Deleting it costs one slow launch.
+
+---
+
+## 10. Finding the random-encounter check
+
+The aim was a toggle for random battles that leaves scripted ones alone. There was no patch to port; it had to be found.
+
+**Start from the effect.** Wrapping the functions that set up a battle and logging the chain of game functions above them gave the same call stack for a boss fight and for a random encounter. The battle is not built where it is decided: something leaves a request, and a later tick picks it up.
+
+**Follow the request.** That led to a state machine in the battle manager, to the one function that starts it, and from there to a native function called from the game's Unreal script. Reading the engine's name table made the script side legible: the caller is the battle HUD's start function. That is still a consequence of the battle, not its cause.
+
+**Log everything the script does.** A ring buffer of the last 65,536 script calls, dumped when a battle is requested, showed what happens in the seconds before one. A battle is a different map, and the game *travels* to it. In a random encounter, the last script call is an ordinary walking update — and twenty milliseconds later the field map is already being torn down. No script call in between decides anything.
+
+**So the decision is native.** Instrumenting the queue of pending map travels found who asks for the trip: a function on the field controller that adds up the distance walked, compares it with a threshold for the zone, rolls, and requests the battle map.
+
+The toggle wraps that function (section 6). Before the original runs it sets the accumulated distance to a very large negative number, and afterwards it puts the real value back. The threshold is never reached. Scripted battles request their map through a different function and are not affected.
+
+The general method: when the effect and its cause are separated by a queue, stop following the call stack and instrument the queue.
+
+---
+
+## 11. Every texture, without playing the game
+
+A texture pack needs the original textures. The plugin can dump them as the game loads them, but that means walking through every area of a four-disc RPG.
+
+The port already had a reader for the game's data, written for the settings tabs (section 7). Generalised, it walks all four discs: 9,197 packages, read in about ninety seconds on six threads, yielding 16,276 distinct textures — 11,123 colour, 4,502 normal maps and 651 lightmaps, written to separate folders, since only the first kind is worth upscaling.
+
+What makes this useful rather than merely complete is the file name. The pack identifies a texture by a hash of its top mip level as it sits in guest memory. The package stores that mip in the same tiled, byte-swapped form the game later hands to the GPU, so the hash can be computed straight from the disc. Of 1,503 textures dumped the slow way, in-game, 1,487 have exactly the hash the disc reader predicts. The rest are mostly things that never came from a package: video frames and render targets.
+
+So a complete pack can be prepared offline, named correctly, and picked up by the game the first time it loads each texture.
+
+---
+
+## 12. Rebuilding the fonts instead of upscaling them
+
+The game's fonts are texture atlases: a white glyph with a dark outline, compressed, drawn for 720p. An upscale came first. A careful filter chain made the text sharper but not clean, because the compression had already turned the edges into steps. The fonts were made from outlines once; the better idea was to go back to them.
+
+**Identify the typeface.** For each font in the game, its glyphs are compared against the same characters rendered from the typefaces installed on the machine, scoring how much the silhouettes overlap. The matches were unambiguous — ordinary system typefaces, a humanist sans for the dialogue and menus and a grotesque for the small labels.
+
+**Fit it.** Five parameters per font — size, baseline, stroke weight, outline radius and outline opacity — are fitted by numerical optimisation until the rendered glyphs line up with the originals.
+
+**Redraw.** Every glyph is rendered from the vector outline at four times the resolution, through a distance field so that the outline has an even thickness, and placed by its centroid in the same cell of the atlas. The glyph table, the metrics and the spacing are the game's own; only the pixels are new.
+
+The result goes through the texture pack like any other replacement. Nothing is patched. The atlas of button icons is not text, so it keeps a smooth upscale, and the credits font is the weakest fit of the set.
+
+---
+
+## 13. Two crashes worth writing down
+
+Both of these are the kind that look like something else.
+
+### A leak that ends every session
+
+Sessions died after anywhere from four to twenty minutes with a failed allocation. A watcher that logged the emulated heaps every few seconds showed one region growing in a straight line — 205 MB in a little over three minutes, sitting idle in the intro, never once going down.
+
+The game creates and destroys short-lived threads constantly, thousands of them per session. In the SDK, a finished thread could not release its own last reference from inside itself, and nothing else released it either. Every one of them kept its memory.
+
+The fix parks finished threads on a list with a timestamp, and another thread frees them a couple of seconds later. Afterwards the same region stayed between 1 and 8 MB through 26 minutes of real play, with the count of threads released tracking the count created.
+
+### A race in the audio system
+
+The game crashed during the loading screen after an early boss, reading an address just above `0x10000000` that nothing had ever allocated.
+
+The crash reporter showed two threads. One was loading a sound bank. The other, the audio engine's own thread, was walking the table of banks. While a bank is loading, its slot in that table briefly holds a small number that is not yet a pointer, and the engine followed it. On the console this presumably lands on readable memory; here it landed on a hole.
+
+The fixes that intervened all failed. Rejecting the bad access stopped one crash and exposed the next reader of the same slot. Correcting the table from outside produced the game's own "disc read error".
+
+What worked was to change nothing the game does: reserve that small range of addresses, filled with zeros. A reader that follows the half-written slot now finds a bank with zero entries and skips it. When the load finishes, the slot holds the real pointer.
+
+A watcher confirmed it was the fix and not luck. In three consecutive runs through that loading screen it logged the race happening, with the very addresses that used to crash, and the game carrying on.
+
+The lesson: when a race cannot be removed, make the losing side read something harmless.
 
 ---
 

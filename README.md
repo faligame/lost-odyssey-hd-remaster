@@ -27,39 +27,56 @@ Built on the [ReXGlue](https://github.com/rexglue/rexglue-sdk) recompilation SDK
 
 | | |
 |---|---|
-| **Boots and plays** | Yes — main menu, saves, achievements, cutscenes |
+| **Boots and plays** | Yes — main menu, saves, achievements, cutscenes, long sessions |
 | **Renderers** | Direct3D 12 and Vulkan, both in one plugin, switchable in-game |
-| **1080p native** | Working on both |
-| **1440p / 4K** | Working on both |
+| **Resolutions** | Seven presets from 720p to 4K, on both renderers |
+| **Interface at every resolution** | Exact — same layout as the console, drawn at the chosen resolution |
 | **SMAA** | Working on both |
 | **Texture replacement** | Working on both |
 | **Settings in the game's own menu** | Working |
 | **All four discs** | Disc changes handled automatically — extracted folders, ISO or Games on Demand |
+| **Startup** | Seconds, once a resolution has been used once |
 | **Linux** | Not built yet — the SDK supports it, including arm64 |
 | **Android** | Not supported by the SDK |
 
-Honest caveat: "playable" means it boots, runs, saves and has been played for extended sessions. The disc change has been tested by forcing it, not yet at a real chapter boundary, and the game has not been verified start-to-finish across all four discs.
+Honest caveat: "playable" means it boots, runs, saves and has been played for extended sessions, including real disc changes into discs 2 and 3. The game has not been verified start-to-finish across all four discs. The in-between presets (900p, 1620p, 1800p) are the newest work and have only been lightly tested.
 
 ---
 
 ## What it adds over the Xbox 360 release
 
-### Real 1080p, not upscaling
+### Any resolution, with the interface exactly where it belongs
 
-The 360 renders Lost Odyssey at 1280×720 because that is what fits in the console's 10 MB of EDRAM — colour and depth buffers together. The interesting part of this project is that the game now renders a genuine 1920×1080 frame, HUD and menus included, rather than a 720p frame stretched to fit your monitor.
+The 360 renders Lost Odyssey at 1280×720 because that is what fits in the console's 10 MB of EDRAM — colour and depth buffers together.
 
-Getting there required enlarging the emulated EDRAM eightfold, widening the render-target address fields, binary-patching the GPU plugin's precompiled resolve shaders, and rewriting the game's 2D projection per draw call so the interface follows the larger canvas. [How it works →](docs/technical.md)
+The port leaves the game believing it is still rendering 720p, and scales every draw it makes — scene, HUD, menus, text — inside the GPU plugin. The scale goes in quarter steps, so it does not have to be a whole number: 1080p is ×1.5, not a 1440p image shrunk down. You pay for the pixels of the resolution you chose and nothing more.
 
-Resolution options:
-
-| Preset | Internal render | Notes |
+| Preset | Internal render | Scale |
 |---|---|---|
-| 720p | 1280×720 | Original console mode |
-| **1080p (native)** | 1920×1080 | The game itself renders 1080p |
-| 1440p | 2560×1440 | 2× supersample of the 720p canvas |
-| 4K | 3840×2160 | 3× supersample of the 720p canvas |
+| 720p | 1280×720 | ×1 — original console mode |
+| 900p | 1600×900 | ×1.25 |
+| **1080p** | 1920×1080 | ×1.5 |
+| 1440p | 2560×1440 | ×2 |
+| 1620p | 2880×1620 | ×2.25 |
+| 1800p | 3200×1800 | ×2.5 |
+| 4K | 3840×2160 | ×3 |
 
 On top of the preset: 1×/2×/3× SSAA, post-process antialiasing (FXAA, FXAA extreme or SMAA 1x), and a presentation filter (bilinear, CAS or FSR).
+
+Because the game's own canvas never changes, the interface is correct by construction: dialogue boxes, tutorial panels, target callouts and animated text sit exactly where the console put them, only sharper.
+
+This replaced an earlier approach. The first version made the game itself render a 1920×1080 frame, which meant enlarging the emulated EDRAM eightfold and rewriting the game's 2D projection draw by draw. It worked for most of the game and never quite closed the interface — a tutorial box spilling off-screen here, a callout line pointing at nothing there. It was retired, and the code removed. [Both approaches, and why the second one won →](docs/technical.md#1-rendering-above-720p)
+
+### Fast startup
+
+Xbox 360 emulation translates the game's shaders and asks the graphics driver to compile about two thousand pipelines before the first frame. When the driver's own cache misses, that takes one to two minutes — on every launch, and every time the resolution changes.
+
+The port now keeps the compiled pipelines on disk, as modern PC games do. The first launch at a given resolution still compiles them. After that, startup takes a few seconds. [How →](docs/technical.md#9-keeping-compiled-pipelines-on-disk)
+
+| Measured on an RTX 3080 | First launch | Later launches |
+|---|---|---|
+| Direct3D 12 | about 2 min | about 3 s |
+| Vulkan | about 1 min | about 7 s |
 
 ### SMAA
 
@@ -82,6 +99,12 @@ The old **F2** overlay still exists during development and is on its way out.
 The community patches from Xenia Canary (original patch work by **boma**) are reimplemented as recompiler hooks rather than byte patches, so each one is a switch you can flip while playing:
 
 60 fps · character flicker fix · disable occlusion queries · post-process upscale fix · disable depth of field · disable motion blur · 16× anisotropic filtering · disable dynamic shadows
+
+### No random encounters
+
+An optional toggle that stops random battles while you explore. Scripted fights — bosses, story battles — are untouched.
+
+It does not edit any game data. The port found the one native function that counts your steps towards the next encounter, and holds its counter back while the option is on. [How it was found →](docs/technical.md#10-finding-the-random-encounter-check)
 
 ### Save anywhere
 
@@ -109,9 +132,17 @@ Extracted folders are the recommended form, but **ISO images** and **Games on De
 
 ### Texture replacement
 
-Dump every texture the game uses to PNG, replace what you want, and reload the pack in place with **F7** — no restart, no repacking.
+Replace any texture with a PNG and reload the pack in place with **F7** — no restart, no repacking.
 
 Textures are matched by a hash of their contents rather than by memory address, so a pack keeps working across sessions and save files.
+
+There are two ways to get the originals. The port can dump textures as the game uses them. Or it can read all four discs directly and write out every texture in the game — more than sixteen thousand of them, in about a minute and a half — without visiting a single area. The names it writes carry the same hashes the pack uses, so a whole pack can be prepared offline. Colour textures, normal maps and lightmaps go to separate folders. [How →](docs/technical.md#11-every-texture-without-playing-the-game)
+
+### Sharp text
+
+The game's fonts are texture atlases drawn for a 720p screen, and they look it at higher resolutions. Upscaling them makes them bigger, not cleaner.
+
+Instead, the port's tooling identifies the typeface each atlas was made from, fits its size, weight and outline to the original glyphs, and redraws every glyph from the vector outlines at four times the resolution. Same letters, same positions, same metrics — drawn again rather than enlarged. [How →](docs/technical.md#12-rebuilding-the-fonts-instead-of-upscaling-them)
 
 ### DualSense button prompts
 
@@ -119,23 +150,29 @@ The game's button glyph atlas is one of those replaceable textures, so the on-sc
 
 ### Turbo
 
-Fast-forward at 1.5×, 2× or 3×, as hold or toggle, bindable to a controller button (**F6** on keyboard). Useful for a 2007 JRPG's random encounters and long corridors.
+Fast-forward from 1.5× up to 8×, as hold or toggle, bindable to a controller button (**F6** on keyboard). Useful for a 2007 JRPG's long corridors and battle animations.
 
-### A long-standing crash, fixed
+### Stability
 
-The recompiled build originally died after roughly 27 minutes of play with a heap allocation failure. That is fixed.
+Three failures that would each have ended a playthrough are fixed:
+
+- A crash after roughly 27 minutes of play, from a heap allocation failure.
+- A slow leak in how finished threads were cleaned up, which exhausted a memory region after anywhere from four to twenty minutes.
+- A crash during the loading screen that follows an early boss, caused by a race in the audio system while a sound bank was still loading.
+
+Saves brought over from an emulator are repaired on startup, so the game can list them. And if the port does crash, it writes a report that names the original Xbox 360 function it was in. [The two that took longest →](docs/technical.md#13-two-crashes-worth-writing-down)
 
 ---
 
 ## Screenshots
 
-### 720p vs native 1080p
+### 720p vs 1080p
 
-The same save, the same camera, two presets. Look at the interface, not the scenery: on the left it is drawn on the console's 1280×720 canvas and stretched to fit your screen. On the right the game is drawing it at 1920×1080.
+The same save, the same camera, two presets. Look at the interface, not the scenery: on the left it is drawn at the console's 1280×720 and stretched to fit your screen. On the right it is drawn at 1920×1080.
 
-| 720p — original console mode | 1080p — native |
+| 720p — original console mode | 1080p |
 |---|---|
-| ![720p](media/comparison-720p.png) | ![1080p native](media/comparison-1080p.png) |
+| ![720p](media/comparison-720p.png) | ![1080p](media/comparison-1080p.png) |
 
 ### Settings inside the game
 
@@ -165,7 +202,7 @@ The development overlay that came first. Now that the settings live in the game'
 
 ## Documentation
 
-- **[Technical notes](docs/technical.md)** — how 1080p native was actually achieved (EDRAM windowing, shader binary patching, canvas pinning), SMAA, new menu pages built from the game's own assets, and how the four discs are handled.
+- **[Technical notes](docs/technical.md)** — rendering above 720p (the native-resolution attempt, and the fractional render scale that replaced it), SMAA, menu pages built from the game's own assets, the four discs, the pipeline cache, the encounter toggle, texture dumping, the fonts, and two crashes worth writing down.
 - **[Progress log](docs/progress.md)** — what changed and when.
 - **[FAQ](docs/faq.md)** — including where the source is and why, and what you will need to play.
 
@@ -178,12 +215,12 @@ Built and maintained by **[FaliGame](https://github.com/FaliGame)**.
 Standing on other people's work:
 
 - **[ReXGlue](https://github.com/rexglue/rexglue-sdk)** — the static recompilation SDK this port is built on, and the Xenos GPU plugin this project forks.
-- **[Xenia](https://xenia.jp/)** — the emulator whose GPU research underpins essentially all Xbox 360 graphics work, this project included.
+- **[Xenia](https://xenia.jp/)** — the emulator whose GPU research underpins essentially all Xbox 360 graphics work, this project included. The plugin's compute shaders are built from Xenia's shader sources, under their BSD licence.
 - **boma** — the original Xenia Canary patch set for Lost Odyssey, reimplemented here as runtime hooks.
 - **re:Blue** — the Blue Dragon recompilation, which showed how a finished port on this SDK should look.
-- **[LostOdysseyRecomp](https://github.com/freefrank/LostOdysseyRecomp)** by freefrank — another Lost Odyssey recompilation, whose published research located the game's Configuration screen task and System menu table used by the in-game settings and save-anywhere features. The implementations here are independent.
 - **[SMAA](https://github.com/iryoku/smaa)** — by Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro and Diego Gutierrez; used unmodified under its MIT licence.
-- **[lzokay](https://github.com/jackoalan/lzokay)** — LZO decompression (MIT), used to read the game's menu textures.
+- **[lzokay](https://github.com/jackoalan/lzokay)** — LZO decompression (MIT), used to read the game's textures.
+- **[stb](https://github.com/nothings/stb)** — PNG writing (public domain), used by the texture dump.
 
 ---
 
