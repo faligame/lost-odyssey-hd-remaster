@@ -28,6 +28,7 @@ Construido sobre el SDK de recompilación [ReXGlue](https://github.com/rexglue/r
 | | |
 |---|---|
 | **Arranca y se juega** | Sí — menú, partidas guardadas, logros, cinemáticas, sesiones largas |
+| **Fallos conocidos** | **Resueltos** — los tres por los que se conoce a este juego en emulación, y los propios del port |
 | **Renderizadores** | Direct3D 12 y Vulkan, los dos en un plugin, elegibles desde el juego |
 | **Resoluciones** | Siete presets de 720p a 4K, en los dos renderizadores |
 | **Interfaz a cualquier resolución** | Exacta — la misma maquetación que en la consola, dibujada a la resolución elegida |
@@ -39,7 +40,32 @@ Construido sobre el SDK de recompilación [ReXGlue](https://github.com/rexglue/r
 | **Linux** | Aún no compilado — el SDK lo soporta, incluido arm64 |
 | **Android** | El SDK no lo soporta |
 
-Con honestidad: «jugable» significa que arranca, corre, guarda y aguanta sesiones largas, incluidos cambios de disco reales al disco 2 y al 3. El juego no se ha verificado de principio a fin en los cuatro discos. Los presets intermedios (900p, 1620p, 1800p) son lo más reciente y solo se han probado por encima.
+Con honestidad: «jugable» significa que arranca, corre, guarda y aguanta sesiones largas, incluidos cambios de disco reales al disco 2 y al 3. Todos los fallos conocidos están arreglados, pero el juego no se ha verificado de principio a fin en los cuatro discos, así que puede haber otros que nadie se ha encontrado todavía. Los presets intermedios (900p, 1620p, 1800p) son lo más reciente y solo se han probado por encima.
+
+---
+
+## Los fallos conocidos ya no están
+
+Quien haya jugado a Lost Odyssey en un emulador conoce la lista: tres sitios donde el juego se cuelga o se cierra, con remedios que pasan de guía en guía: baja aquí a 30 fps, no te saltes esta cinemática, no embistas esa puerta dos veces. **Ninguno ocurre en este port, a 60 fps y sin ningún remedio.**
+
+| Fallo conocido | En este port |
+|---|---|
+| **Celda de la prisión de Grand Staff** (disco 1) — cierre al hablar con Jansen tras el sueño, o al embestir la puerta de la celda más de una vez | **No ocurre.** Probados los dos disparadores a 60 fps, embistiendo la puerta varias veces con dos personajes y sin saltarse ninguna cinemática. |
+| **Cinemática tras el primer jefe** (disco 1) — cierre salvo que se baje el juego a 30 fps | **Arreglado.** Aquí también se cerraba al principio; se encontró la causa y se eliminó. Validado en tres partidas de tres a 60 fps. |
+| **Tren congelado** (disco 3) — el juego se congela durante la secuencia del tren | **No ocurre.** La parte del tren se jugó entera en una sesión de 41 minutos sin ningún congelamiento. |
+
+Los problemas propios del port de ese mismo tipo también están arreglados:
+
+| Problema | Estado |
+|---|---|
+| Cierre tras unos 27 minutos de juego | **Arreglado** |
+| Fuga de memoria que acababa con cualquier sesión entre los 4 y los 20 minutos | **Arreglado** — 26 minutos de juego con la memoria afectada plana |
+| Cierre al listar partidas copiadas de un emulador | **Arreglado** — las cabeceras que faltan se reconstruyen al arrancar |
+| Interfaz descolocada a 1080p (cuadros del tutorial, líneas de objetivo, textos animados) | **Arreglado** — la interfaz es ahora exacta a cualquier resolución |
+| Uno o dos minutos compilando shaders en cada arranque | **Arreglado** — se compilan una vez por resolución y se guardan en disco |
+| Barras a puntos y líneas finas a 900p y 1620p | **Arreglado** |
+
+Si el port llega a cerrarse, deja un informe que nombra la función original de Xbox 360 en la que estaba. [Cómo se encontraron los dos más difíciles →](docs/technical.md#13-two-crashes-worth-writing-down)
 
 ---
 
@@ -151,16 +177,6 @@ El atlas de glifos de botones del juego es una de esas texturas sustituibles, as
 ### Turbo
 
 Avance rápido desde ×1,5 hasta ×8, como pulsación mantenida o conmutador, asignable a un botón del mando (**F6** en teclado). Útil en un JRPG de 2007 con pasillos largos y animaciones de combate.
-
-### Estabilidad
-
-Están arreglados tres fallos que por sí solos habrían acabado con cualquier partida:
-
-- Un cierre tras unos 27 minutos de juego, por un fallo de reserva de memoria.
-- Una fuga lenta en la limpieza de los hilos terminados, que agotaba una región de memoria al cabo de entre cuatro y veinte minutos.
-- Un cierre en la pantalla de carga que sigue a un jefe del principio, causado por una carrera en el sistema de audio mientras un banco de sonido aún se estaba cargando.
-
-Las partidas traídas de un emulador se reparan al arrancar para que el juego pueda listarlas. Y si el port se cierra, deja un informe que nombra la función original de Xbox 360 en la que estaba. [Los dos que más costaron →](docs/technical.md#13-two-crashes-worth-writing-down)
 
 ---
 

@@ -52,6 +52,14 @@ Tested by walking around for several minutes with no encounters, and then trigge
 
 Also tried: the "partial debug menu" patch from the Xenia patch list. In this port it breaks the game, and it has been left out.
 
+### The three known emulation crashes, checked — 27–28 Sep
+
+Lost Odyssey has three well-known places where it hangs or crashes under emulation. All three were tested deliberately, at 60 fps:
+
+- **Grand Staff prison cell** — both triggers tried, no crash.
+- **Cutscene after the first boss** — crashed here too, for a reason of its own. Fixed, and validated three runs out of three.
+- **Frozen train on disc 3** — the train section played through with no freeze.
+
 ### Two session-ending crashes, and discs changing for real — 27–28 Sep
 
 - **A leak.** Finished threads were never freed, which exhausted a memory region after four to twenty minutes. Fixed in the SDK copy the port builds against. Afterwards: 26 minutes of play with that region flat.

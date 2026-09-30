@@ -28,6 +28,7 @@ Built on the [ReXGlue](https://github.com/rexglue/rexglue-sdk) recompilation SDK
 | | |
 |---|---|
 | **Boots and plays** | Yes — main menu, saves, achievements, cutscenes, long sessions |
+| **Known crashes** | **Gone** — the three this game is known for under emulation, and the port's own |
 | **Renderers** | Direct3D 12 and Vulkan, both in one plugin, switchable in-game |
 | **Resolutions** | Seven presets from 720p to 4K, on both renderers |
 | **Interface at every resolution** | Exact — same layout as the console, drawn at the chosen resolution |
@@ -39,7 +40,32 @@ Built on the [ReXGlue](https://github.com/rexglue/rexglue-sdk) recompilation SDK
 | **Linux** | Not built yet — the SDK supports it, including arm64 |
 | **Android** | Not supported by the SDK |
 
-Honest caveat: "playable" means it boots, runs, saves and has been played for extended sessions, including real disc changes into discs 2 and 3. The game has not been verified start-to-finish across all four discs. The in-between presets (900p, 1620p, 1800p) are the newest work and have only been lightly tested.
+Honest caveat: "playable" means it boots, runs, saves and has been played for extended sessions, including real disc changes into discs 2 and 3. Every known crash is fixed, but the game has not been verified start-to-finish across all four discs, so there may be others nobody has met yet. The in-between presets (900p, 1620p, 1800p) are the newest work and have only been lightly tested.
+
+---
+
+## The known crashes are gone
+
+Anyone who has played Lost Odyssey under emulation knows the list: three places where the game hangs or crashes, with workarounds passed around in guides — drop to 30 fps here, do not skip this cutscene, do not ram that door twice. **None of them happen in this port, at 60 fps, with no workaround.**
+
+| Known problem | In this port |
+|---|---|
+| **Grand Staff prison cell** (disc 1) — crash when talking to Jansen after the dream, or when ramming the cell door more than once | **Does not happen.** Both triggers tested at 60 fps, door rammed repeatedly with two characters, no cutscene skipped. |
+| **Cutscene after the first boss** (disc 1) — crash unless the game is dropped to 30 fps | **Fixed.** It did crash here at first; the cause was found and removed. Validated three runs out of three at 60 fps. |
+| **Frozen train** (disc 3) — the game freezes during the train sequence | **Does not happen.** The train section was played through in a 41-minute session with no freeze. |
+
+The port's own problems of the same kind are fixed too:
+
+| Problem | Status |
+|---|---|
+| Crash after about 27 minutes of play | **Fixed** |
+| Memory leak that ended any session after 4 to 20 minutes | **Fixed** — 26 minutes of play with the affected memory flat |
+| Crash when listing saves copied from an emulator | **Fixed** — missing save headers are rebuilt at startup |
+| Interface out of place at 1080p (tutorial boxes, callout lines, animated text) | **Fixed** — the interface is now exact at every resolution |
+| One to two minutes of shader compilation on every launch | **Fixed** — compiled once per resolution, then kept on disk |
+| Dotted bars and thin lines at 900p and 1620p | **Fixed** |
+
+If the port does crash, it writes a report that names the original Xbox 360 function it was in. [How the hardest two were found →](docs/technical.md#13-two-crashes-worth-writing-down)
 
 ---
 
@@ -151,16 +177,6 @@ The game's button glyph atlas is one of those replaceable textures, so the on-sc
 ### Turbo
 
 Fast-forward from 1.5× up to 8×, as hold or toggle, bindable to a controller button (**F6** on keyboard). Useful for a 2007 JRPG's long corridors and battle animations.
-
-### Stability
-
-Three failures that would each have ended a playthrough are fixed:
-
-- A crash after roughly 27 minutes of play, from a heap allocation failure.
-- A slow leak in how finished threads were cleaned up, which exhausted a memory region after anywhere from four to twenty minutes.
-- A crash during the loading screen that follows an early boss, caused by a race in the audio system while a sound bank was still loading.
-
-Saves brought over from an emulator are repaired on startup, so the game can list them. And if the port does crash, it writes a report that names the original Xbox 360 function it was in. [The two that took longest →](docs/technical.md#13-two-crashes-worth-writing-down)
 
 ---
 
