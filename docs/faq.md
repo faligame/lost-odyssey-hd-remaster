@@ -42,7 +42,7 @@ Yes, in the ways you would expect from native code and a modern GPU: 60 fps, hig
 
 ### Does it have the crashes this game is known for under emulation?
 
-No. The three well-known ones — the Grand Staff prison cell, the cutscene after the first boss, and the frozen train on disc 3 — do not happen here, at 60 fps and with no workaround. The second one did crash in this port at first; its cause was found and fixed. The [README](../README.md#the-known-crashes-are-gone) has the full list, including the port's own bugs and their status.
+No. The three well-known ones — the Grand Staff prison cell, the cutscene after the first boss, and the frozen train on disc 3 — do not happen here, at 60 fps and with no workaround. The second one did crash in this port at first; its cause was found and fixed. The [feature list](features.md#the-known-crashes-are-gone) has the full table, including the port's own bugs and their status.
 
 The game has not yet been played start to finish, so there may be problems nobody has met. If the port crashes, it writes a report naming the original game function it was in.
 

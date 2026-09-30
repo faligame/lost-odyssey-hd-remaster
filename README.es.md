@@ -1,6 +1,6 @@
 # Lost Odyssey HD Remaster
 
-**Una versión nativa de PC de Lost Odyssey (Xbox 360), obtenida por recompilación estática del código original del juego. No es un emulador.**
+**Lost Odyssey, nativo en PC. Hasta 4K, a 60 fps y sin los cierres por los que se le conoce.**
 
 *[Read this in English](README.md)*
 
@@ -9,238 +9,91 @@
 > **Estado:** en desarrollo · jugable · código aún no publicado · sin descargas
 > Este repositorio es una ventana al progreso, no una release. Ver las [preguntas frecuentes](docs/faq.md).
 
----
-
-## Qué es esto
-
-Lost Odyssey salió en 2007 para Xbox 360 y nunca llegó a PC. Este proyecto lo convierte en un ejecutable de PC de verdad.
-
-La recompilación estática traduce el código máquina PowerPC original del juego, función a función, a código fuente x86-64, que después se compila como un binario normal de Windows. No hay emulación de CPU en tiempo de ejecución, ni intérprete, ni JIT: la lógica del juego corre como código nativo en tu procesador. Solo se reimplementa en el anfitrión lo que el juego le pedía a la consola: el flujo de comandos de GPU, el sistema de ficheros, las partidas guardadas, el audio y el mando.
-
-La diferencia práctica es que el juego deja de comportarse como un juego de consola bajo emulación y empieza a comportarse como un juego de PC. Se puede modificar. Se le puede cambiar el renderizador. Su resolución ya no la decide lo que cabía en la memoria de una GPU de 2007.
-
-Construido sobre el SDK de recompilación [ReXGlue](https://github.com/rexglue/rexglue-sdk) (0.10.0), con un fork muy modificado de su plugin de GPU Xenos.
+Lost Odyssey salió en Xbox 360 en 2007 y nunca salió de ahí. Este proyecto reconstruye el código original del juego como un programa de Windows de verdad —**no es un emulador**— y le da después lo que le daría una remasterización.
 
 ---
 
-## Estado actual
+## Qué trae
 
-| | |
-|---|---|
-| **Arranca y se juega** | Sí — menú, partidas guardadas, logros, cinemáticas, sesiones largas |
-| **Fallos conocidos** | **Resueltos** — los tres por los que se conoce a este juego en emulación, y los propios del port |
-| **Renderizadores** | Direct3D 12 y Vulkan, los dos en un plugin, elegibles desde el juego |
-| **Resoluciones** | Siete presets de 720p a 4K, en los dos renderizadores |
-| **Interfaz a cualquier resolución** | Exacta — la misma maquetación que en la consola, dibujada a la resolución elegida |
-| **SMAA** | Funcionando en los dos |
-| **Pack de texturas** | Funcionando en los dos |
-| **Ajustes en el menú del propio juego** | Funcionando |
-| **Los cuatro discos** | Cambio de disco automático — carpetas extraídas, ISO o Games on Demand |
-| **Arranque** | Segundos, una vez usada cada resolución por primera vez |
-| **Linux** | Aún no compilado — el SDK lo soporta, incluido arm64 |
-| **Android** | El SDK no lo soporta |
+- **De 720p a 4K.** Siete resoluciones, y en todas la interfaz queda exactamente en su sitio.
+- **60 fps.**
+- **Los cierres conocidos ya no están.** La celda de la prisión, la cinemática tras el primer jefe, el tren congelado. No ocurre ninguno, y sin trucos para esquivarlos.
+- **Texto nítido.** Las fuentes del juego redibujadas desde cero a cuatro veces la resolución.
+- **Packs de texturas HD.** Cambia cualquier textura por un PNG y recárgala sin salir del juego.
+- **Sin batallas aleatorias**, con un interruptor. Los jefes y los combates de la historia siguen.
+- **Guardar en cualquier sitio.**
+- **Turbo hasta ×8**, en un botón.
+- **Cuatro discos, sin cambiarlos.** El juego cambia de disco solo.
+- **Arranca en segundos.**
+- **Botones de PlayStation en pantalla**, si ese es el mando que tienes en las manos.
+- **Todo desde el menú del propio juego**, como si hubiera venido así.
 
-Con honestidad: «jugable» significa que arranca, corre, guarda y aguanta sesiones largas, incluidos cambios de disco reales al disco 2 y al 3. Todos los fallos conocidos están arreglados, pero el juego no se ha verificado de principio a fin en los cuatro discos, así que puede haber otros que nadie se ha encontrado todavía. Los presets intermedios (900p, 1620p, 1800p) son lo más reciente y solo se han probado por encima.
+[Todas las características, explicadas →](docs/features.es.md)
 
 ---
 
-## Los fallos conocidos ya no están
-
-Quien haya jugado a Lost Odyssey en un emulador conoce la lista: tres sitios donde el juego se cuelga o se cierra, con remedios que pasan de guía en guía: baja aquí a 30 fps, no te saltes esta cinemática, no embistas esa puerta dos veces. **Ninguno ocurre en este port, a 60 fps y sin ningún remedio.**
-
-| Fallo conocido | En este port |
-|---|---|
-| **Celda de la prisión de Grand Staff** (disco 1) — cierre al hablar con Jansen tras el sueño, o al embestir la puerta de la celda más de una vez | **No ocurre.** Probados los dos disparadores a 60 fps, embistiendo la puerta varias veces con dos personajes y sin saltarse ninguna cinemática. |
-| **Cinemática tras el primer jefe** (disco 1) — cierre salvo que se baje el juego a 30 fps | **Arreglado.** Aquí también se cerraba al principio; se encontró la causa y se eliminó. Validado en tres partidas de tres a 60 fps. |
-| **Tren congelado** (disco 3) — el juego se congela durante la secuencia del tren | **No ocurre.** La parte del tren se jugó entera en una sesión de 41 minutos sin ningún congelamiento. |
-
-Los problemas propios del port de ese mismo tipo también están arreglados:
-
-| Problema | Estado |
-|---|---|
-| Cierre tras unos 27 minutos de juego | **Arreglado** |
-| Fuga de memoria que acababa con cualquier sesión entre los 4 y los 20 minutos | **Arreglado** — 26 minutos de juego con la memoria afectada plana |
-| Cierre al listar partidas copiadas de un emulador | **Arreglado** — las cabeceras que faltan se reconstruyen al arrancar |
-| Interfaz descolocada a 1080p (cuadros del tutorial, líneas de objetivo, textos animados) | **Arreglado** — la interfaz es ahora exacta a cualquier resolución |
-| Uno o dos minutos compilando shaders en cada arranque | **Arreglado** — se compilan una vez por resolución y se guardan en disco |
-| Barras a puntos y líneas finas a 900p y 1620p | **Arreglado** |
-
-Si el port llega a cerrarse, deja un informe que nombra la función original de Xbox 360 en la que estaba. [Cómo se encontraron los dos más difíciles →](docs/technical.md#13-two-crashes-worth-writing-down)
-
----
-
-## Qué añade sobre la versión de Xbox 360
-
-### Cualquier resolución, con la interfaz exactamente en su sitio
-
-La 360 renderiza Lost Odyssey a 1280×720 porque es lo que cabe en los 10 MB de EDRAM de la consola, contando color y profundidad a la vez.
-
-El port deja que el juego siga creyendo que dibuja a 720p y escala dentro del plugin de GPU todo lo que dibuja: escena, HUD, menús y textos. La escala va en pasos de un cuarto, así que no tiene que ser un número entero: 1080p es ×1,5, no una imagen de 1440p reducida. Pagas los píxeles de la resolución que eliges y nada más.
-
-| Preset | Render interno | Escala |
-|---|---|---|
-| 720p | 1280×720 | ×1 — modo original de consola |
-| 900p | 1600×900 | ×1,25 |
-| **1080p** | 1920×1080 | ×1,5 |
-| 1440p | 2560×1440 | ×2 |
-| 1620p | 2880×1620 | ×2,25 |
-| 1800p | 3200×1800 | ×2,5 |
-| 4K | 3840×2160 | ×3 |
-
-Sobre el preset: SSAA ×1/×2/×3, antialiasing de post-proceso (FXAA, FXAA extremo o SMAA 1x) y filtro de presentación (bilineal, CAS o FSR).
-
-Como el lienzo del propio juego no cambia nunca, la interfaz es correcta por construcción: los cuadros de diálogo, los paneles del tutorial, las líneas de objetivo y los textos animados quedan justo donde los puso la consola, solo que más nítidos.
-
-Esto sustituyó a un planteamiento anterior. La primera versión hacía que el propio juego renderizase un fotograma de 1920×1080, lo que exigió multiplicar por ocho la EDRAM emulada y reescribir la proyección 2D del juego dibujada a dibujada. Funcionaba en casi todo el juego y nunca llegó a cerrar del todo la interfaz: un cuadro del tutorial que se salía de la pantalla, una línea de objetivo que no apuntaba a nada. Se retiró y el código se eliminó. [Los dos planteamientos, y por qué ganó el segundo →](docs/technical.md#1-rendering-above-720p)
-
-### Arranque rápido
-
-La emulación de Xbox 360 traduce los shaders del juego y le pide al driver gráfico que compile unos dos mil pipelines antes del primer fotograma. Cuando la caché del propio driver no acierta, eso son uno o dos minutos: en cada arranque y cada vez que se cambia de resolución.
-
-El port guarda ahora en disco los pipelines ya compilados, como hacen los juegos modernos de PC. El primer arranque a una resolución sigue compilándolos. A partir de ahí, el juego arranca en unos segundos. [Cómo →](docs/technical.md#9-keeping-compiled-pipelines-on-disk)
-
-| Medido en una RTX 3080 | Primer arranque | Siguientes |
-|---|---|---|
-| Direct3D 12 | unos 2 min | unos 3 s |
-| Vulkan | alrededor de 1 min | unos 7 s |
-
-### SMAA
-
-Subpixel Morphological Antialiasing —la implementación de referencia, sin modificar— en tres pasadas de compute sobre el fotograma final, en los dos renderizadores. Bordes más limpios que con FXAA, sin el emborronado general que deja FXAA. [Cómo encaja →](docs/technical.md#5-smaa-on-the-final-frame)
-
-TAA se estudió y se ha dejado fuera a propósito por ahora: hecho bien necesita jitter de cámara por shader, la escena antes del HUD, profundidad, historial y vectores de movimiento.
-
-### Ajustes dentro del menú del propio juego
-
-Abre la pantalla de **Configuración** del juego y pulsa **RB**. Junto a la página original aparecen cuatro pestañas nuevas —**Gráficos**, **Parches**, **Extras** y **Texturas**— que parecen venir de fábrica, porque se dibujan con la fuente, los paneles de metal y el cursor del propio juego.
-
-Esos recursos se leen en tiempo de ejecución de tu propia copia del juego. Nada del juego forma parte de este proyecto.
-
-Se maneja como la página nativa: arriba y abajo para moverse, izquierda y derecha para cambiar un valor, **LB/RB** para cambiar de pestaña y **B** para volver a las opciones del juego. Lo que se puede aplicar al momento se aplica al momento. Lo que necesita reiniciar se guarda y la página ofrece reiniciar el juego, pulsando A dos veces para que una pulsación accidental nunca te cueste el progreso sin guardar. [Cómo están hechas las pestañas →](docs/technical.md#7-new-menu-pages-that-look-native)
-
-El antiguo panel de **F2** sigue existiendo durante el desarrollo y está de salida.
-
-### Parches del juego, conmutables en marcha
-
-Los parches de la comunidad para Xenia Canary (trabajo original de **boma**) están reimplementados como hooks del recompilador en vez de como parches de bytes, así que cada uno es un interruptor que puedes cambiar mientras juegas:
-
-60 fps · corrección del parpadeo de personajes · desactivar occlusion queries · fix del post-proceso escalado · desactivar profundidad de campo · desactivar motion blur · filtrado anisotrópico 16× · desactivar sombras dinámicas
-
-### Sin batallas aleatorias
-
-Una opción que detiene los combates aleatorios mientras exploras. Los combates de guion —jefes, batallas de la historia— no se tocan.
-
-No modifica ningún dato del juego. El port localizó la única función nativa que cuenta tus pasos hacia el siguiente encuentro y le retiene el contador mientras la opción está activa. [Cómo se encontró →](docs/technical.md#10-finding-the-random-encounter-check)
-
-### Guardar en cualquier sitio
-
-Una opción que habilita **Guardar** en el menú System lejos de los puntos de guardado. Usa el guardado del propio juego —la misma pantalla de ranuras, los mismos ficheros— en vez de fingir un punto de guardado.
-
-Pensada para la exploración. El juego no se diseñó para guardarse a mitad de un evento o de una cinemática, así que mejor evitarlo.
-
-### Cuatro discos, sin cambiarlos a mano
-
-Lost Odyssey ocupa cuatro discos y pide el siguiente según avanza la historia. En la 360 de eso se encarga la consola. Aquí se encarga el port: cuando el juego pide un disco, el port lo busca, lo monta y deja que el juego siga. Sin avisos y sin menús.
-
-Los discos se reconocen por la cabecera de su propio ejecutable («disco N de 4»), así que los nombres de ficheros y carpetas dan igual. La estructura prevista es una carpeta por disco junto al ejecutable:
-
-```
-Lost Odyssey\
-├── lostodyssey.exe
-└── data\
-    ├── disc1\    default.xex, LO.fpi, xenon_*.fpd ...
-    ├── disc2\
-    ├── disc3\
-    └── disc4\
-```
-
-Las carpetas extraídas son la forma recomendada, pero también valen **imágenes ISO** y paquetes **Games on Demand**, leídos donde estén sin extraer ni copiar nada, y también apuntar al `default.xex` de un disco. Si el disco que pide el juego no aparece, el port lo avisa y espera, como haría la consola, para poder añadirlo sin cerrar el juego. [Cómo funciona el cambio de disco →](docs/technical.md#8-four-discs)
-
-### Sustitución de texturas
-
-Sustituye cualquier textura por un PNG y recarga el pack en caliente con **F7**: sin reiniciar y sin reempaquetar.
-
-Las texturas se identifican por un hash de su contenido en vez de por su dirección de memoria, así que un pack sigue funcionando entre sesiones y entre partidas guardadas.
-
-Hay dos formas de conseguir las originales. El port puede volcar las texturas según las va usando el juego. O puede leer directamente los cuatro discos y escribir todas las texturas del juego —más de dieciséis mil, en minuto y medio— sin pisar una sola zona. Los nombres que escribe llevan los mismos hashes que usa el pack, así que se puede preparar un pack entero sin jugar. Las texturas de color, los mapas de normales y los de iluminación van a carpetas separadas. [Cómo →](docs/technical.md#11-every-texture-without-playing-the-game)
-
-### Texto nítido
-
-Las fuentes del juego son atlas de texturas dibujados para una pantalla de 720p, y a más resolución se nota. Reescalarlos los hace más grandes, no más limpios.
-
-En su lugar, las herramientas del port identifican la tipografía con la que se hizo cada atlas, ajustan su tamaño, su grosor y su contorno a los glifos originales y vuelven a dibujar cada glifo desde los trazos vectoriales a cuatro veces la resolución. Las mismas letras, en las mismas posiciones y con las mismas métricas: dibujadas de nuevo en vez de ampliadas. [Cómo →](docs/technical.md#12-rebuilding-the-fonts-instead-of-upscaling-them)
-
-### Prompts de botones de DualSense
-
-El atlas de glifos de botones del juego es una de esas texturas sustituibles, así que los prompts en pantalla pueden mostrar glifos de PlayStation en vez de los de Xbox que traía fijos la versión de 2007. Sin parchear nada y sin una build aparte: va dentro del pack de texturas.
-
-### Turbo
-
-Avance rápido desde ×1,5 hasta ×8, como pulsación mantenida o conmutador, asignable a un botón del mando (**F6** en teclado). Útil en un JRPG de 2007 con pasillos largos y animaciones de combate.
-
----
-
-## Capturas
+## Míralo
 
 ### 720p frente a 1080p
 
-El mismo sitio, dos presets. A la izquierda, los 1280×720 de la consola. A la derecha, el mismo fotograma renderizado a 1920×1080: escena, minimapa y textos por igual.
-
-| 720p — modo original de consola | 1080p |
+| Resolución original de la consola | Este port a 1080p |
 |---|---|
 | ![720p](media/comparison-720p.png) | ![1080p](media/comparison-1080p.png) |
 
-### La interfaz, exactamente en su sitio
+### Una interfaz que no se mueve
 
-Las pantallas de combate son donde un parche de resolución suele delatarse: un cuadro de objetivo cuya línea no apunta a nada, un menú a unos píxeles de su panel. Aquí la línea llega al enemigo y cada panel está donde lo puso la consola, porque el lienzo del propio juego no se toca.
+Al subir la resolución de un juego de consola los menús suelen descolocarse: un cuadro fuera de su panel, una línea que no apunta a nada. Aquí no.
 
 ![Info objetivo con su línea](media/target-info.png)
 
 ![Menú de combate](media/battle-menu.png)
 
-### Texto nítido
+### Texto que se lee
 
-La misma línea de diálogo, ampliada. Arriba, el atlas de fuente original del juego. Abajo, la misma fuente redibujada desde los trazos vectoriales a cuatro veces la resolución.
+La misma línea de diálogo, ampliada. Arriba el original, abajo este port.
 
 ![Fuente original arriba, fuente redibujada abajo](media/fonts-comparison-zoom.png)
 
-### Ajustes dentro del juego
+### Opciones que parecen del propio juego
 
-La pantalla de Configuración del juego con las pestañas del port. La fuente, los paneles de metal cepillado, el cursor y la maquetación son los del propio juego, leídos de sus datos al arrancar; las páginas son nuevas.
-
-La pestaña Gráficos, con las siete resoluciones:
+Pulsa **RB** en la pantalla de Configuración del juego y aparecen cuatro pestañas nuevas, dibujadas con la fuente, los paneles y el cursor del propio juego.
 
 ![Pestaña Gráficos dentro de la pantalla de Configuración del juego](media/in-game-settings.png)
 
-La pestaña Extras: guardar en cualquier sitio, batallas aleatorias y turbo:
-
 ![Pestaña Extras](media/extras-tab.png)
 
-### Prompts de botones de DualSense
-
-La pantalla de ajustes del propio juego, con glifos de PlayStation en lugar de los botones de Xbox que traía fijos la versión de 2008.
+### Botones de PlayStation
 
 ![Glifos de DualSense](media/dualsense-glyphs.png)
 
 ### Pantalla de título
 
-El subtítulo «HD Remaster» no está en el juego original. Es una textura sustituida —el pack de texturas trabajando en lo primero que ves— y sirve además para reconocer de un vistazo qué build estás ejecutando.
-
 ![Pantalla de título](media/title-screen.png)
-
-### El panel de F2
-
-El panel de desarrollo que llegó primero: parches, turbo, trucos y herramientas de texturas en una sola ventana. Ahora que los ajustes viven en la pantalla de Configuración del propio juego, está de salida.
-
-![Panel de opciones de F2](media/options-menu.png)
 
 ---
 
-## Documentación
+## Cómo va
 
-- **[Notas técnicas](docs/technical.md)** — renderizar por encima de 720p (el intento de resolución nativa y la escala de render fraccionaria que lo sustituyó), el SMAA, las páginas de menú hechas con los recursos del propio juego, los cuatro discos, la caché de pipelines, la opción de los encuentros, el volcado de texturas, las fuentes y dos cierres que merecía la pena dejar escritos.
-- **[Registro de avances](docs/progress.md)** — qué cambió y cuándo.
-- **[Preguntas frecuentes](docs/faq.md)** — incluido dónde está el código y por qué, y qué hará falta para jugar.
+| | |
+|---|---|
+| **Jugable** | Sí — sesiones largas, partidas guardadas, logros, cinemáticas |
+| **Cierres conocidos** | Arreglados |
+| **Renderizadores** | Direct3D 12 y Vulkan |
+| **Discos** | Los cuatro, desde carpetas, imágenes ISO o Games on Demand |
+| **Linux** | Previsto, aún sin compilar |
+
+La parte honesta: todos los cierres que conocemos están arreglados, pero nadie ha jugado todavía esta versión desde el primer minuto hasta los créditos. Las resoluciones intermedias (900p, 1620p, 1800p) son lo más reciente y solo se han probado por encima.
+
+No hay descarga. Cuando la haya, hará falta tu propia copia del juego.
+
+---
+
+## ¿Quieres los detalles?
+
+- **[Características en detalle](docs/features.es.md)** — qué hace cada una, y la lista completa de fallos arreglados.
+- **[Notas técnicas](docs/technical.md)** — cómo se hizo, para quien quiera hacer lo mismo con otro juego. En inglés.
+- **[Registro de avances](docs/progress.md)** — qué cambió y cuándo. En inglés.
+- **[Preguntas frecuentes](docs/faq.md)** — dónde está el código, qué hará falta para jugar y más. En inglés.
 
 ---
 
@@ -252,7 +105,7 @@ Apoyado en el trabajo de otros:
 
 - **[ReXGlue](https://github.com/rexglue/rexglue-sdk)** — el SDK de recompilación estática sobre el que está construido el port, y el plugin de GPU Xenos del que sale este fork.
 - **[Xenia](https://xenia.jp/)** — el emulador cuya investigación sobre la GPU sostiene prácticamente todo el trabajo gráfico de Xbox 360, este proyecto incluido. Los shaders de compute del plugin se compilan a partir de las fuentes de shaders de Xenia, bajo su licencia BSD.
-- **boma** — el conjunto original de parches de Xenia Canary para Lost Odyssey, reimplementados aquí como hooks en tiempo de ejecución.
+- **boma** — el conjunto original de parches de Xenia Canary para Lost Odyssey, reimplementados aquí como interruptores en tiempo de ejecución.
 - **re:Blue** — la recompilación de Blue Dragon, que enseñó cómo debe quedar un port terminado sobre este SDK.
 - **[SMAA](https://github.com/iryoku/smaa)** — de Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro y Diego Gutierrez; usado sin modificar bajo su licencia MIT.
 - **[lzokay](https://github.com/jackoalan/lzokay)** — descompresión LZO (MIT), para leer las texturas del juego.
@@ -263,8 +116,6 @@ Apoyado en el trabajo de otros:
 ## Aviso legal
 
 Este repositorio no contiene **código del juego, ni recursos del juego, ni ejecutables**: solo documentación y capturas.
-
-Los ajustes dentro del juego leen la fuente y las texturas del menú de la copia del propio jugador al arrancar; ninguna está guardada en este repositorio ni en el port.
 
 Lost Odyssey es © Microsoft / Mistwalker / Feelplus. Este es un proyecto de preservación y porteo sin afiliación y sin ánimo de lucro. Aquí nunca se distribuirá el juego: cualquier release futura exigirá aportar una copia propia obtenida legalmente.
 
