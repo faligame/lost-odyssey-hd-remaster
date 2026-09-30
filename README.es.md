@@ -1,10 +1,10 @@
-# Lost Odyssey — Port a PC
+# Lost Odyssey HD Remaster
 
 **Una versión nativa de PC de Lost Odyssey (Xbox 360), obtenida por recompilación estática del código original del juego. No es un emulador.**
 
 *[Read this in English](README.md)*
 
-![Lost Odyssey corriendo en PC](media/hero.png)
+![Lost Odyssey HD Remaster](media/hero.png)
 
 > **Estado:** en desarrollo · jugable · código aún no publicado · sin descargas
 > Este repositorio es una ventana al progreso, no una release. Ver las [preguntas frecuentes](docs/faq.md).
@@ -184,17 +184,37 @@ Avance rápido desde ×1,5 hasta ×8, como pulsación mantenida o conmutador, as
 
 ### 720p frente a 1080p
 
-La misma partida, la misma cámara, dos presets. Fíjate en la interfaz, no en el escenario: a la izquierda está dibujada a los 1280×720 de la consola y estirada hasta tu pantalla. A la derecha está dibujada a 1920×1080.
+El mismo sitio, dos presets. A la izquierda, los 1280×720 de la consola. A la derecha, el mismo fotograma renderizado a 1920×1080: escena, minimapa y textos por igual.
 
 | 720p — modo original de consola | 1080p |
 |---|---|
 | ![720p](media/comparison-720p.png) | ![1080p](media/comparison-1080p.png) |
 
+### La interfaz, exactamente en su sitio
+
+Las pantallas de combate son donde un parche de resolución suele delatarse: un cuadro de objetivo cuya línea no apunta a nada, un menú a unos píxeles de su panel. Aquí la línea llega al enemigo y cada panel está donde lo puso la consola, porque el lienzo del propio juego no se toca.
+
+![Info objetivo con su línea](media/target-info.png)
+
+![Menú de combate](media/battle-menu.png)
+
+### Texto nítido
+
+La misma línea de diálogo, ampliada. Arriba, el atlas de fuente original del juego. Abajo, la misma fuente redibujada desde los trazos vectoriales a cuatro veces la resolución.
+
+![Fuente original arriba, fuente redibujada abajo](media/fonts-comparison-zoom.png)
+
 ### Ajustes dentro del juego
 
-La pantalla de Configuración del juego con la pestaña Gráficos del port abierta. La fuente, los paneles de metal cepillado, el cursor y la maquetación son los del propio juego, leídos de sus datos al arrancar; la página es nueva.
+La pantalla de Configuración del juego con las pestañas del port. La fuente, los paneles de metal cepillado, el cursor y la maquetación son los del propio juego, leídos de sus datos al arrancar; las páginas son nuevas.
 
-![Ajustes dentro de la pantalla de Configuración del juego](media/in-game-settings.png)
+La pestaña Gráficos, con las siete resoluciones:
+
+![Pestaña Gráficos dentro de la pantalla de Configuración del juego](media/in-game-settings.png)
+
+La pestaña Extras: guardar en cualquier sitio, batallas aleatorias y turbo:
+
+![Pestaña Extras](media/extras-tab.png)
 
 ### Prompts de botones de DualSense
 
@@ -210,7 +230,7 @@ El subtítulo «HD Remaster» no está en el juego original. Es una textura sust
 
 ### El panel de F2
 
-El panel de desarrollo que llegó primero. Ahora que los ajustes viven en la pantalla de Configuración del propio juego, está de salida.
+El panel de desarrollo que llegó primero: parches, turbo, trucos y herramientas de texturas en una sola ventana. Ahora que los ajustes viven en la pantalla de Configuración del propio juego, está de salida.
 
 ![Panel de opciones de F2](media/options-menu.png)
 

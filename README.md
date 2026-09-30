@@ -1,10 +1,10 @@
-# Lost Odyssey — PC Port
+# Lost Odyssey HD Remaster
 
 **A native PC build of Lost Odyssey (Xbox 360), produced by static recompilation of the original game code. Not an emulator.**
 
 *[Léeme en español](README.es.md)*
 
-![Lost Odyssey running on PC](media/hero.png)
+![Lost Odyssey HD Remaster](media/hero.png)
 
 > **Status:** in development · playable · source not public yet · no downloads
 > This repository is a progress window, not a release. See the [FAQ](docs/faq.md).
@@ -184,17 +184,37 @@ Fast-forward from 1.5× up to 8×, as hold or toggle, bindable to a controller b
 
 ### 720p vs 1080p
 
-The same save, the same camera, two presets. Look at the interface, not the scenery: on the left it is drawn at the console's 1280×720 and stretched to fit your screen. On the right it is drawn at 1920×1080.
+The same spot, two presets. On the left, the console's 1280×720. On the right, the same frame rendered at 1920×1080 — scene, minimap and text alike.
 
 | 720p — original console mode | 1080p |
 |---|---|
 | ![720p](media/comparison-720p.png) | ![1080p](media/comparison-1080p.png) |
 
+### The interface, exactly where it belongs
+
+Battle screens are where a resolution patch usually gives itself away: a target box whose line points at nothing, a menu a few pixels off its panel. Here the callout line lands on the enemy and every panel sits where the console put it, because the game's own canvas is never touched.
+
+![Target info with its callout line](media/target-info.png)
+
+![Battle menu](media/battle-menu.png)
+
+### Sharp text
+
+The same line of dialogue, enlarged. Above, the game's original font atlas. Below, the same font redrawn from vector outlines at four times the resolution.
+
+![Original font above, redrawn font below](media/fonts-comparison-zoom.png)
+
 ### Settings inside the game
 
-The game's Configuration screen with the port's Graphics tab open. The font, the brushed-metal panels, the cursor and the layout are the game's own, read from its data at runtime; the page itself is new.
+The game's Configuration screen with the port's tabs. The font, the brushed-metal panels, the cursor and the layout are the game's own, read from its data at runtime; the pages are new.
 
-![Settings inside the game's own Configuration screen](media/in-game-settings.png)
+The Graphics tab, with the seven resolutions:
+
+![Graphics tab inside the game's own Configuration screen](media/in-game-settings.png)
+
+The Extras tab — save anywhere, random battles and turbo:
+
+![Extras tab](media/extras-tab.png)
 
 ### DualSense button prompts
 
@@ -210,7 +230,7 @@ The "HD Remaster" subtitle is not in the original game. It is a replaced texture
 
 ### The F2 overlay
 
-The development overlay that came first. Now that the settings live in the game's own Configuration screen, it is being retired.
+The development overlay that came first: patches, turbo, cheats and texture tools in one panel. Now that the settings live in the game's own Configuration screen, it is being retired.
 
 ![F2 options overlay](media/options-menu.png)
 
