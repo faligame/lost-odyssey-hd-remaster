@@ -51,3 +51,6 @@ cache/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Material de trabajo local, no se publica
+.mio/
