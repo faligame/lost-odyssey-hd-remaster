@@ -15,16 +15,19 @@ Lost Odyssey came out on Xbox 360 in 2007 and never left it. This project rebuil
 
 ## What you get
 
-- **720p to 4K.** Seven resolutions, and the interface stays exactly where it belongs in every one of them.
+- **720p to 4K, and ultrawide.** Pick the output resolution — including Steam Deck (1280×800) and two 21:9 modes — and, separately, how sharp the 3D is rendered.
+- **An interface that is always sharp.** Menus, HUD and dialogue are drawn at your screen's resolution whatever the 3D costs, and stay exactly where the console put them.
+- **DLSS.** DLAA, Quality, Balanced, Performance and Ultra Performance for the 3D, on Direct3D 12 and Vulkan.
 - **60 fps.**
 - **The known crashes are gone.** The prison cell, the cutscene after the first boss, the frozen train. None of them happen, with no workarounds.
+- **No shader stutter.** The port reads your discs and prepares every pipeline the game will need before you play.
 - **Sharp text.** The game's fonts redrawn from scratch at four times the resolution.
-- **HD texture packs.** Swap any texture for a PNG and reload it without leaving the game.
+- **HD texture packs.** Loaded in the background with no hitches; swap any texture and reload it without leaving the game.
 - **No random encounters**, at the flick of a switch. Boss and story fights stay.
 - **Save anywhere.**
 - **Turbo up to 8×**, on a button.
 - **Four discs, no swapping.** The game changes disc by itself.
-- **Starts in seconds.**
+- **Six languages** for the game's text, switchable from the menu.
 - **PlayStation button prompts**, if that is the controller in your hands.
 - **All of it in the game's own menu**, looking as if it shipped that way.
 
@@ -40,9 +43,30 @@ Lost Odyssey came out on Xbox 360 in 2007 and never left it. This project rebuil
 |---|---|
 | ![720p](media/comparison-720p.png) | ![1080p](media/comparison-1080p.png) |
 
+### DLSS
+
+The same scene with the 3D rendered at 720p and upscaled, without and with DLSS.
+
+<!-- PLACEHOLDER: media/dlss-off.png y media/dlss-on.png -->
+| DLSS off | DLSS Quality |
+|---|---|
+| *(screenshot coming soon)* | *(screenshot coming soon)* |
+
+### Ultrawide
+
+<!-- PLACEHOLDER: media/ultrawide.png -->
+*(screenshot coming soon)*
+
+### HD textures
+
+<!-- PLACEHOLDER: media/hd-textures-before.png y media/hd-textures-after.png -->
+| Original | HD pack |
+|---|---|
+| *(screenshot coming soon)* | *(screenshot coming soon)* |
+
 ### An interface that stays put
 
-Raise the resolution of a console game and the menus usually drift: a box off its panel, a line pointing at nothing. Not here.
+Raise the resolution of a console game and the menus usually drift: a box off its panel, a line pointing at nothing. Not here. And the interface is drawn at the full resolution of your screen even when the 3D is rendered lower.
 
 ![Target info with its callout line](media/target-info.png)
 
@@ -58,6 +82,7 @@ The same line of dialogue, enlarged. Original above, this port below.
 
 Press **RB** on the game's Configuration screen and four new tabs appear, drawn with the game's own font, panels and cursor.
 
+<!-- PLACEHOLDER: sustituir media/in-game-settings.png por la pestaña Gráficos nueva (Resolución, Escala 3D, DLSS, Nitidez 3D) -->
 ![Graphics tab inside the game's own Configuration screen](media/in-game-settings.png)
 
 ![Extras tab](media/extras-tab.png)
@@ -66,8 +91,16 @@ Press **RB** on the game's Configuration screen and four new tabs appear, drawn 
 
 ![DualSense glyphs](media/dualsense-glyphs.png)
 
+### Ready before you play
+
+On the first launch the port reads your discs and prepares the game's shaders, on a screen made from the game's own fonts and textures.
+
+<!-- PLACEHOLDER: media/shader-prep.png -->
+*(screenshot coming soon)*
+
 ### Title screen
 
+<!-- PLACEHOLDER: sustituir media/title-screen.png por el título con el logo "HD Remaster" -->
 ![Title screen](media/title-screen.png)
 
 ---
@@ -79,10 +112,11 @@ Press **RB** on the game's Configuration screen and four new tabs appear, drawn 
 | **Playable** | Yes — long sessions, saves, achievements, cutscenes |
 | **Known crashes** | Fixed |
 | **Renderers** | Direct3D 12 and Vulkan |
+| **DLSS** | Both renderers |
 | **Discs** | All four, from folders, ISO images or Games on Demand |
 | **Linux** | Planned, not built yet |
 
-The honest part: every crash we know of is fixed, but nobody has played this build from the first minute to the credits yet. The in-between resolutions (900p, 1620p, 1800p) are the newest work and have only been lightly tested.
+The honest part: every crash we know of is fixed, but nobody has played this build from the first minute to the credits yet. The sharp-interface layer is newest on Vulkan, and some 3D scales (×1.25, ×1.75 and other quarter steps) have only been lightly tested. On ultrawide screens videos are still stretched.
 
 There is no download. When there is one, it will need your own copy of the game.
 
@@ -110,6 +144,7 @@ Standing on other people's work:
 - **[SMAA](https://github.com/iryoku/smaa)** — by Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro and Diego Gutierrez; used unmodified under its MIT licence.
 - **[lzokay](https://github.com/jackoalan/lzokay)** — LZO decompression (MIT), used to read the game's textures.
 - **[stb](https://github.com/nothings/stb)** — PNG writing (public domain), used by the texture dump.
+- **[NVIDIA DLSS](https://github.com/NVIDIA/DLSS)** — through the NVIDIA RTX SDK, under its licence. NVIDIA and DLSS are trademarks of NVIDIA Corporation.
 
 ---
 

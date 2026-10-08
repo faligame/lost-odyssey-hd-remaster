@@ -221,9 +221,11 @@ So the port stores the compiled result itself:
 - **Direct3D 12:** an `ID3D12PipelineLibrary`. Each pipeline is looked up by name before it is created, and stored after. The name is a hash of the checksums of its shaders plus its description, so a pipeline whose shaders changed simply is not found and gets compiled fresh.
 - **Vulkan:** a `VkPipelineCache`, serialised to disk and handed to every `vkCreateGraphicsPipelines` call. Its header is checked against the device and driver before it is trusted.
 
-There is one file per title, render path and scale. It is written right after the startup batch, not only on exit, so a crash does not throw the work away, and it is written to a temporary file and renamed. If most lookups miss — after a change to the shader translator, say — the library is rebuilt from the pipelines that are alive, so stale entries do not pile up.
+There is one file per title and render path — until October it was also one per scale; section 17 explains how that went away. It is written right after the startup batch, not only on exit, so a crash does not throw the work away, and it is written to a temporary file and renamed. If most lookups miss — after a change to the shader translator, say — the library is rebuilt from the pipelines that are alive, so stale entries do not pile up.
 
-The cost is disk: roughly 230 MB per resolution on Direct3D 12, where the exact-EDRAM pixel shaders are large, and 30 MB on Vulkan. It is a cache. Deleting it costs one slow launch.
+The cost is disk: roughly 230 MB on Direct3D 12, where the exact-EDRAM pixel shaders are large, and 30 MB on Vulkan. It is a cache. Deleting it costs one slow launch.
+
+This store only holds pipelines the game has already drawn. Section 16 is how the port fills it before you play.
 
 ---
 
@@ -300,3 +302,129 @@ The lesson: when a race cannot be removed, make the losing side read something h
 ---
 
 *More to come as the port progresses.*
+
+---
+
+## 14. A sharp interface over a scaled 3D
+
+The fractional scale of section 1 scales *everything* the game draws, interface included. That keeps the interface exact, but it ties its sharpness to the cost of the 3D: text at 4K means a 3D at 4K.
+
+The port now splits the two.
+
+**Telling the interface apart.** Lost Odyssey draws its 2D against a 1280×720 design canvas, with an orthographic projection that carries those numbers. The plugin recognises that projection in the vertex shader constants of each draw. That is the one signal that held across menus, HUD, dialogue, the battle interface and text — far more reliable than guessing from render state.
+
+**A second target.** Interface draws are redirected away from the emulated EDRAM to an ordinary RGBA8 render target at the output resolution, drawn the conventional way, without pixel-shader interlock. The 3D keeps going through the EDRAM at the 3D scale.
+
+**Compositing.** At the end of the frame a compute pass upscales the 3D to the output — or hands it to DLSS (section 15) — and blends the interface layer over it.
+
+What made it hard is that the game does not keep the two apart. Some of it works with full-screen images:
+
+- **Menu backgrounds and the orb screen** are copies of the scene that the game resolves out of the EDRAM and draws back as a full-screen quad. Moving those to the interface layer corrupted them. The rule that settled it: an image the size of the screen stays in the EDRAM with the 3D.
+- **Crossfades between scenes** blend the previous frame, interface included, over the new one. A frame split in two layers cannot reproduce that, so there is an option for a clean cut instead. It only skips the faded layer while its opacity is below one.
+
+On screens that are not 16:9 the interface layer is a centred 16:9 box. Still open: the gamma ramp is not applied to the interface layer, and markers attached to 3D positions may drift outside the 16:9 area.
+
+---
+
+## 15. DLSS on an emulated GPU
+
+DLSS wants five things: a jittered low-resolution colour image, depth, motion vectors, the jitter offset, and the scene before the interface goes on top. A 2007 console game provides none of them. Each had to be manufactured.
+
+- **The scene before the interface** is the 3D target of section 14. Without that split there would have been nothing to feed it.
+- **Depth** lives only in the emulated EDRAM, in the console's 24-bit floating point format, laid out in tiles. A compute shader reads it back into a normal depth texture right after the game resolves the main surface, following the EDRAM addressing of section 1, fractional scale included.
+- **Motion vectors.** The game's view-projection matrix is in a fixed range of vertex shader constants. With the current matrix and the previous one, the same compute pass reconstructs each pixel's position from depth and projects it into the previous frame. That gives exact camera motion. Objects that move on their own — characters, particles — get no vectors of their own. An experimental pass that captures per-character motion exists, and is off by default, because DLSS already handles them well.
+- **Jitter.** A Halton (2,3) sub-pixel offset is added to the viewport of 3D draws only: depth-tested, full-screen, scene-sized. Jittering the interface would make it shimmer.
+- **Calling it.** DLSS is driven through NVIDIA's NGX from inside the plugin's deferred command list, with the descriptor heaps and pipeline state rebound afterwards. On Vulkan it needs a few extensions the SDK did not enable, which a small patch to the SDK adds.
+
+**The flag that mattered.** The first working build left trails behind everything that moved. The cause was not the motion vectors. Lost Odyssey uses **inverted depth**, with the near plane at 1 and the far plane at 0, and DLSS has to be told so. One flag removed the trails.
+
+Two things were tried and dropped. A negative mip bias, recommended for DLSS, turned the 3D almost black on Vulkan, so it is off. A choice of DLSS model was removed; NGX picks one per mode.
+
+---
+
+## 16. Preparing every shader from the discs
+
+Section 9 keeps compiled pipelines on disk, but a pipeline only gets there after the game has drawn it once, and that first draw is a stutter. A cache seeded from someone else's play would be the usual answer, and it would be game data. This port builds its own from the user's discs.
+
+Lost Odyssey is an Unreal Engine 3 game, and UE3 packages carry a **ShaderCache** export: the compiled Xbox 360 shaders for every material in the package. The port wraps the game's file read function, recognises packages as they are read and parses what it needs:
+
+- the shader cache itself, keyed by material;
+- which materials each package asks for — imported materials, exported material instances, and materials attached to meshes.
+
+That gives pairs of vertex and pixel shaders, which go to the plugin to be translated and turned into pipelines ahead of time.
+
+The remaining piece is render state — vertex layouts, blend modes, formats — which does not live in the packages. A small seed file holds just those descriptions, about 33 KB, with no code and no shaders in it. Each discovered pair is combined with the state descriptions that fit it.
+
+**All of the disc at once.** Waiting for the game to read packages only covers where you have been. So on the first launch the port reads every package on the mounted disc itself — disc 1 is 6,253 packages, parsed in about three seconds on several threads, giving 11,648 shader pairs — and hands the whole batch over.
+
+**Never in the way.** The player chooses all four discs or only the current one. While the queue is working, whatever the area being loaded needs jumps to the front. Pipelines are created at the normal pace and not flat out; flat out dragged the game to 20 fps. On a warm driver cache the 16,000 pipelines of the full game take about 12 seconds. On a cold one, the first time, it can take up to a quarter of an hour.
+
+---
+
+## 17. One pipeline set for every scale
+
+Until October the 3D scale was compiled into the translated shaders, because the EDRAM addressing of section 1 depends on it. Every scale was therefore a different set of about two thousand pipelines, with its own file on disk and its own slow first launch.
+
+The scale is now a **runtime constant**. The shader translators — DXBC for Direct3D 12, SPIR-V for Vulkan — read it from a constant buffer instead of baking it in. The places that needed it:
+
+- pixel-shader parameter generation;
+- memory export from pixel shaders;
+- the interlocked EDRAM output, where the tile size is `20q × 4q`;
+- texture fetches from scaled resolves.
+
+The awkward part is division. With a baked-in scale, dividing by `q` compiles to a shift or to a constant multiply. At run time it would be an integer division per pixel. The port precomputes the "magic number" multiplier and shift for each `q` on the host and passes them along, so the shaders still multiply, and the result is exact for every value they can see.
+
+The outcome is one pipeline library per renderer instead of one per scale. Moving the 3D slider costs nothing but a restart.
+
+---
+
+## 18. Where the frame time went
+
+The plugin gained a GPU profiler — timestamp queries on both renderers, grouped by kind of work and by shader — and an fps counter. What it showed, in order of what it was worth:
+
+- **Re-uploading memory that had not changed.** The SDK marked every page the CPU had written as dirty every frame, and re-uploaded it whole. Turning that off took uploads from about 560 per frame, 18 MB, to about 90, under half a megabyte. On Vulkan at 720p with ×3 supersampling: from 31–33 fps to 48–49.
+- **Transparent effects that add nothing.** With exact EDRAM emulation every blended fragment pays for an interlocked read-modify-write, including the ones with zero alpha, or an additive zero. Those now skip the EDRAM. Draws that do not write depth run their depth test after the shader. On Vulkan the GPU frame dropped from 22.5 to 12.8 ms in an effect-heavy scene, with effect draws two and a half to four times cheaper. On Direct3D 12 the gain was small.
+- **Texture copies by compute on Vulkan.** Storage-image writes replace buffer-to-image copies: texture loading went from 4.7 to 1.95 ms per frame.
+- **Depth clears.** The game clears depth by drawing rectangles, which under interlock means a full pixel pass. They now become a compute clear: 1.2 to 0.6 ms per frame.
+- **Asynchronous submission.** Recording and submitting command lists moved off the thread that runs the game's GPU commands. At 4K on Direct3D 12, from 47–51 fps to about 58. At ×3 on Vulkan, from about 38 to about 50.
+- **Registers as locals.** The recompiled code keeps the condition, count and exception registers as C++ locals instead of fields of the CPU context, so the compiler can keep them in host registers. The executable shrank from 88.9 to 73.4 MB. Two bolder variants of the same idea were tried and reverted: one broke video playback, the other crashed at start.
+
+An experiment in batching uploads speculatively made vertices explode, and was dropped.
+
+---
+
+## 19. HD textures without hitches
+
+The first full HD pack made every area entrance stop. A trace showed about ninety pack loads in ten seconds blocking the GPU thread for almost a second in total, decoding and uploading on the spot.
+
+Now a texture whose HD replacement is not ready is drawn with the original. Background threads read and decode the DDS; when it is ready, the cache drops the original and creates the HD one in its place. The dropped texture is kept in a "graveyard" until the GPU has finished every frame that used it.
+
+Three details mattered:
+
+- **Textures used every frame** — the text atlas, button prompts — never changed to HD, because the cache never saw a moment when they were unused. They are now replaced regardless, through the same graveyard, and the pack's interface textures are loaded straight away.
+- **Stale descriptors.** On Direct3D 12, replacing a texture under a cached descriptor table hung the GPU. A replacement counter now forces the tables to be rebuilt.
+- **Reused slots.** The game reuses texture objects. After a scene change, a slot could keep the HD match of whatever it held before, so a character briefly wore someone else's clothes. The match is now recomputed whenever the game reloads data into an existing texture.
+
+The pack is stored as BC7 DDS with full mip chains: a 4096² texture goes from about 85 MB uncompressed to 22 MB. The texture cache's memory budget is raised accordingly while a pack is active.
+
+---
+
+## 20. A patch that froze the enemies
+
+Every Xenia Canary patch for Lost Odyssey was ported as a switch, and one of them was "Disable occlusion queries". Its purpose was to sidestep two hangs under emulation.
+
+In this port, with it on, some battles had enemies frozen in their pose, or stretched into spikes of vertices. It looked like a skinning bug, and it was chased as one — through the CPU skinning path, the code generator (section 21) and thread priorities, which seemed to help until it happened again.
+
+The cause was the patch. Unreal Engine 3 does not animate skeletons it believes are invisible. With occlusion queries disabled, the answer the engine got back said "not visible", so those skeletons were never updated. Occlusion queries are now always on, answered by the emulated GPU.
+
+The lesson for anyone porting a patch list: a patch that hides a problem in an emulator may be answering a question the engine actually uses.
+
+---
+
+## 21. A bug in the code generator
+
+While chasing a flicker on a character, a trace of the vertices the GPU read led back to the CPU skinning code. Every tangent came out as `0xFF000000`.
+
+The chain was a run of vector instructions: a multiply-add, a conversion to integers, and then `vpkuwus` and `vpkuhus`, which pack with unsigned saturation. In the generated code the destination register was also the source. The generator wrote the result element by element *while still reading the source*, so X, Y and Z were overwritten before they were read, and only W survived.
+
+The fix is to build the result in a temporary and assign it at the end. The other element-wise generators were checked and do not have the problem, because they read and write the same index. It did not turn out to be the cause of the flicker, but it was a real miscompilation in the SDK, and it is worth checking in any game built with it.

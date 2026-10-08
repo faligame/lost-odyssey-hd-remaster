@@ -31,14 +31,14 @@ Xenia is an excellent emulator and this project would not exist without the work
 An emulator translates the game's code while it runs. A static recompilation translates it *once*, ahead of time, into a normal PC executable. The result runs the game's logic as native x86-64 with no interpreter or JIT in the way — but more importantly for this project, it makes the game *modifiable* in ways an emulator cannot easily match:
 
 - Fixes become toggles in an options menu instead of external patch files.
-- The renderer is part of the build, so it can be changed — which is how a game hard-limited to 720p by console memory ends up rendering at anything from 900p to 4K with its interface intact.
+- The renderer is part of the build, so it can be changed — which is how a game hard-limited to 720p by console memory ends up rendering at anything up to 4K, with DLSS, with its interface intact and sharp.
 - The output is a single executable that behaves like a PC game.
 
 The cost is that the work is per-title and substantial. Xenia runs thousands of games; this runs one.
 
 ### Does it run better than the console?
 
-Yes, in the ways you would expect from native code and a modern GPU: 60 fps, higher resolutions, anisotropic filtering, supersampling, and no loading from optical media.
+Yes, in the ways you would expect from native code and a modern GPU: 60 fps, higher resolutions, ultrawide, DLSS, anisotropic filtering, and no loading from optical media.
 
 ### Does it have the crashes this game is known for under emulation?
 
@@ -46,19 +46,27 @@ No. The three well-known ones — the Grand Staff prison cell, the cutscene afte
 
 The game has not yet been played start to finish, so there may be problems nobody has met. If the port crashes, it writes a report naming the original game function it was in.
 
-### Why does the first launch take a minute or two?
+### Why does the first launch take a while?
 
-The graphics driver has to compile about two thousand pipelines before the first frame. The port keeps the result on disk, so this happens once per resolution and renderer. After that, startup takes a few seconds.
+On the first launch the port reads your discs and prepares every shader the game will need, so that nothing stutters later. You can prepare all four discs or only the part you are playing, and you can start playing right away with **Enter** while it finishes. It takes from a few seconds to about a quarter of an hour, depending on what your graphics driver already has cached.
 
-The cache takes roughly 230 MB per resolution on Direct3D 12 and 30 MB on Vulkan. It is safe to delete; the next launch rebuilds it.
+It happens once per renderer. After that, startup takes two or three seconds, at any resolution and any 3D scale.
+
+The cache takes roughly 230 MB on Direct3D 12 and 30 MB on Vulkan. It is safe to delete; the next launch rebuilds it.
 
 ### Which resolution should I pick?
 
-The one your monitor has. Each preset costs what its own pixel count costs, so 1080p is noticeably lighter than 1440p, and 1800p lighter than 4K. The interface is identical at all of them.
+For **Resolution**, the one your monitor has. The interface is drawn at that resolution, always sharp.
+
+**3D scale** is where the cost is. ×1.5 is 1080p, ×2 is 1440p, ×3 is 4K; matching your output is the natural choice, and going above it is supersampling. On an RTX card, DLSS Quality or DLAA lets you keep a lighter 3D scale with a sharp result.
+
+### Do I need an NVIDIA card?
+
+No. DLSS needs a GeForce RTX card; everything else works on any GPU with Direct3D 12 or Vulkan. Without DLSS there is SMAA, FXAA and a 3D sharpness setting.
 
 ### Linux? Steam Deck? Android?
 
-Linux is planned and is the reason the Vulkan renderer exists — the recompilation SDK supports Linux, including arm64. It has not been built yet.
+Linux is planned and is the reason the Vulkan renderer exists — the recompilation SDK supports Linux, including arm64. It has not been built yet. The Steam Deck's 1280×800 is already one of the output resolutions.
 
 Android is not supported by the SDK, so it is not on the table.
 

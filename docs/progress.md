@@ -4,7 +4,67 @@ Newest first.
 
 ---
 
+## October 2026
+
+### The sharp-interface layer, fixed for real scenes — 7–8 Oct
+
+Menu backgrounds, the orb screen and crossfades had come out corrupted with the interface on its own layer. Full-screen images now stay with the 3D, and a new **Fade between scenes** option replaces the crossfade with a clean cut. A character occasionally wearing another one's HD textures after a scene change is fixed too. [Details →](technical.md#14-a-sharp-interface-over-a-scaled-3d)
+
+### Shaders prepared from the discs — 6–8 Oct
+
+On the first launch the port reads your discs, finds every material and prepares its pipelines before you play, on a screen in the game's own style. All four discs or only the current one, at your choice, with the area being loaded always first. Validated on both renderers. [How →](technical.md#16-preparing-every-shader-from-the-discs)
+
+### One set of pipelines for every 3D scale — 7 Oct
+
+The 3D scale is now a runtime constant in the translated shaders instead of being compiled in. One pipeline library per renderer, instead of one per scale. [How →](technical.md#17-one-pipeline-set-for-every-scale)
+
+### Faster at high resolutions — 7 Oct
+
+Command lists are recorded and submitted on a thread of their own: 4K on Direct3D 12 went from 47–51 fps to about 58, and ×3 on Vulkan from about 38 to about 50. The recompiled code keeps more CPU registers as locals, which also took 15 MB off the executable. [Details →](technical.md#18-where-the-frame-time-went)
+
+### DLSS — 6–7 Oct
+
+DLAA, Quality, Balanced, Performance and Ultra Performance for the 3D, on Direct3D 12 and then on Vulkan, with a 3D sharpness setting. Depth comes out of the emulated EDRAM, motion vectors from the game's camera. The trails the first version left behind moving objects came down to one flag: the game uses inverted depth. [How →](technical.md#15-dlss-on-an-emulated-gpu)
+
+### A sharp interface, and a new Graphics tab — 6 Oct
+
+Menus, HUD and text are drawn at the output resolution on a layer of their own; the 3D has its own scale. The Graphics tab now has a **Resolution** slider — including Steam Deck and two ultrawide modes — and a **3D scale** slider from ×1 to ×7 in quarter steps. Supersampling and the presentation filter are gone: the first is now just a 3D scale, and the 3D upscale is part of the compositing. [How →](technical.md#14-a-sharp-interface-over-a-scaled-3d)
+
+### 16:10 and 21:9 — 3 Oct
+
+The 3D widens instead of stretching, and the black bars of in-engine cutscenes go away. The interface stays 16:9 in the middle. Videos are still stretched.
+
+### Performance — 3 Oct
+
+A GPU profiler inside the plugin, and what it found. Pages the CPU had not changed were being re-uploaded every frame; Vulkan went from 31–33 to 48–49 fps in the same scene without it. Transparent effects that add nothing skip the EDRAM, texture copies on Vulkan run as compute, and depth clears take half the time. [Details →](technical.md#18-where-the-frame-time-went)
+
+### Softer shadows, saves in a folder, and a preparation screen — 2 Oct
+
+- Dynamic shadows with a linear penumbra and a filtered shadow map, and less flicker on characters.
+- Saves in `SAVE\` next to the executable, one folder per slot, with earlier saves moved there automatically.
+- A screen in the game's own style while shaders are prepared, in six languages.
+
+### Frozen enemies, found — 2 Oct
+
+Some battles had enemies frozen in place, or stretched into spikes. The cause was the occlusion-query patch from the Xenia list: the engine stops animating what it thinks is invisible. The patch is gone. [The story →](technical.md#20-a-patch-that-froze-the-enemies)
+
+### HD textures in the background — 1–2 Oct
+
+An upscaled pack for the whole game — 8,245 textures, about 32 GB as BC7 DDS — is being tested. The plugin now reads DDS, and loads HD textures in the background instead of stopping at every area entrance. [How →](technical.md#19-hd-textures-without-hitches) The pack is made from game data and will not be distributed.
+
+### "HD Remaster" on the title screen, and a code generator bug — 1 Oct
+
+- The title logo now reads "HD Remaster", drawn by the game itself with its own fade-in and fade-out.
+- A miscompilation in the SDK's code generator, in two vector pack instructions, was found and fixed. [Details →](technical.md#21-a-bug-in-the-code-generator)
+
+---
+
 ## September 2026
+
+### Six languages, and a hang detector — 30 Sep
+
+- The game's text in English, French, German, Italian, Spanish or Japanese, chosen from the Extras tab. The port's own menus are translated too.
+- If no frame is drawn for a few seconds, the port writes down the call stack of every thread.
 
 ### Compiled pipelines kept on disk — 30 Sep
 
@@ -184,11 +244,13 @@ First fully playable build: main menu, gameplay, saves, achievements.
 
 ## Planned
 
-- A thorough pass over the in-between resolutions (900p, 1620p, 1800p) on both renderers
-- The upscaled texture pack
-- A Linux build
+- A thorough pass over the quarter-step 3D scales on both renderers
+- Confirm the sharp-interface layer in play on Vulkan
+- Ultrawide: videos, full-screen fades and markers outside the 16:9 box
+- A sharper 3D upscale when DLSS is off
+- Finish testing the upscaled texture pack
+- A Linux build, and Steam Deck
 - Retire the F2 overlay, now that the settings live in the game's own Configuration screen
 - A full playthrough across the four discs, including the change to disc 4
 - Test Games on Demand packages
 - Remaining UI polish: save list scrolling
-- Ultrawide support, from the one Xenia patch still unported

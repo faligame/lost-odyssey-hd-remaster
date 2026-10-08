@@ -26,45 +26,65 @@ The port's own problems of the same kind are fixed too:
 | Interface out of place at 1080p (tutorial boxes, callout lines, animated text) | **Fixed** — the interface is now exact at every resolution |
 | One to two minutes of shader compilation on every launch | **Fixed** — compiled once per resolution, then kept on disk |
 | Dotted bars and thin lines at 900p and 1620p | **Fixed** |
+| Enemies frozen in place, or "exploding" into spikes, in some battles | **Fixed** — caused by one of the Xenia patches; see below |
+| A hitch on entering every area once an HD pack was installed | **Fixed** — HD textures now load in the background |
+| A character briefly wearing another character's HD textures after a scene change | **Fixed** |
+| Corrupted menu backgrounds and crossfades with the sharp-interface layer | **Fixed** |
 
-If the port does crash, it writes a report that names the original Xbox 360 function it was in. [How the hardest two were found →](technical.md#13-two-crashes-worth-writing-down)
+If the port does crash, it writes a report that names the original Xbox 360 function it was in. If it stops drawing frames for more than a few seconds, it writes down what every thread was doing. [How the hardest two were found →](technical.md#13-two-crashes-worth-writing-down)
 
 ---
 
 ## What it adds over the Xbox 360 release
 
-### Any resolution, with the interface exactly where it belongs
+### Output resolution and 3D scale, chosen separately
 
 The 360 renders Lost Odyssey at 1280×720 because that is what fits in the console's 10 MB of EDRAM — colour and depth buffers together.
 
-The port leaves the game believing it is still rendering 720p, and scales every draw it makes — scene, HUD, menus, text — inside the GPU plugin. The scale goes in quarter steps, so it does not have to be a whole number: 1080p is ×1.5, not a 1440p image shrunk down. You pay for the pixels of the resolution you chose and nothing more.
+The port leaves the game believing it is still rendering 720p, and scales its 3D inside the GPU plugin. The **Graphics** tab now has two sliders where there used to be one list of presets:
 
-| Preset | Internal render | Scale |
-|---|---|---|
-| 720p | 1280×720 | ×1 — original console mode |
-| 900p | 1600×900 | ×1.25 |
-| **1080p** | 1920×1080 | ×1.5 |
-| 1440p | 2560×1440 | ×2 |
-| 1620p | 2880×1620 | ×2.25 |
-| 1800p | 3200×1800 | ×2.5 |
-| 4K | 3840×2160 | ×3 |
+- **Resolution** — what reaches your screen: 720p, Steam Deck (1280×800), 900p, 1080p, ultrawide 1080 (2560×1080), 1440p, 1620p, ultrawide 1440 (3440×1440), 1800p or 4K.
+- **3D scale** — how many pixels the 3D is rendered with, from ×1 (the console's 1280×720) to ×7, in quarter steps. The menu shows it as a percentage of your output. ×1.5 is 1080p, ×2 is 1440p, ×3 is 4K.
 
-On top of the preset: 1×/2×/3× SSAA, post-process antialiasing (FXAA, FXAA extreme or SMAA 1x), and a presentation filter (bilinear, CAS or FSR).
+The quarter steps matter: 1080p is a real ×1.5, not a 1440p image shrunk down. You pay for the pixels you choose and nothing more. [How a fractional scale works →](technical.md#1-rendering-above-720p)
 
-Because the game's own canvas never changes, the interface is correct by construction: dialogue boxes, tutorial panels, target callouts and animated text sit exactly where the console put them, only sharper.
+The old supersampling setting is gone, because it is now simply a 3D scale above your output. Post-process antialiasing (FXAA, FXAA extreme or SMAA 1x) is still there, plus a **3D sharpness** setting (off, low, medium, high).
+
+### An interface that is always sharp
+
+Menus, HUD, dialogue and text are no longer rendered at the 3D scale. They are drawn on a layer of their own at the full output resolution and composited over the 3D. Play at 4K with the 3D at 1080p and the text is still 4K text.
+
+Because the game's own canvas never changes, the interface is also correct by construction: dialogue boxes, tutorial panels, target callouts and animated text sit exactly where the console put them, only sharper. [How the interface is split from the 3D →](technical.md#14-a-sharp-interface-over-a-scaled-3d)
 
 This replaced an earlier approach. The first version made the game itself render a 1920×1080 frame, which meant enlarging the emulated EDRAM eightfold and rewriting the game's 2D projection draw by draw. It worked for most of the game and never quite closed the interface — a tutorial box spilling off-screen here, a callout line pointing at nothing there. It was retired, and the code removed. [Both approaches, and why the second one won →](technical.md#1-rendering-above-720p)
 
-### Fast startup
+### DLSS
 
-Xbox 360 emulation translates the game's shaders and asks the graphics driver to compile about two thousand pipelines before the first frame. When the driver's own cache misses, that takes one to two minutes — on every launch, and every time the resolution changes.
+NVIDIA DLSS for the 3D, on both Direct3D 12 and Vulkan, on GeForce RTX cards: **DLAA**, **Quality**, **Balanced**, **Performance** and **Ultra Performance**. The interface is not touched by it; it stays on its own sharp layer.
 
-The port now keeps the compiled pipelines on disk, as modern PC games do. The first launch at a given resolution still compiles them. After that, startup takes a few seconds. [How →](technical.md#9-keeping-compiled-pipelines-on-disk)
+Choosing a mode sets the 3D scale for you, and moving the 3D scale by hand turns DLSS off. The 3D never goes below the console's own 720p, so modes that would land on the same scale as a better one are greyed out — at 1080p output, Balanced, Performance and Ultra Performance would all be 720p, so only Quality and DLAA are offered. With DLSS on, SMAA and FXAA are switched off.
 
-| Measured on an RTX 3080 | First launch | Later launches |
-|---|---|---|
-| Direct3D 12 | about 2 min | about 3 s |
-| Vulkan | about 1 min | about 7 s |
+A game from 2007 gives DLSS none of what it needs, so the port builds it: depth read back out of the emulated EDRAM, motion vectors from the game's own camera matrices, and a sub-pixel camera jitter applied only to the 3D draws. [How →](technical.md#15-dlss-on-an-emulated-gpu)
+
+### Ultrawide and Steam Deck
+
+The two 21:9 resolutions and the Deck's 16:10 widen the 3D view instead of stretching it, and remove the black bars of the in-engine cutscenes. The interface stays in a centred 16:9 box, as it was designed.
+
+Still to do: pre-rendered videos are stretched to fill a 21:9 screen, and full-screen fades only cover the centre.
+
+### No shader stutter, and a fast start
+
+Xbox 360 emulation translates the game's shaders as it meets them, and asks the graphics driver to compile a pipeline the first time each one is drawn. That is the hitch everyone knows: an object that appears a moment late, a stutter the first time a spell is cast.
+
+The port does that work before you play. On the first launch it reads your discs, finds every material the game can draw, and prepares their pipelines on a screen built from the game's own fonts and textures. You choose whether to prepare **all four discs** at once or **only the part you are playing**; whatever the area being loaded needs always goes to the front of the queue, and **Enter** lets you start playing right away while the rest finishes in the background. [How →](technical.md#16-preparing-every-shader-from-the-discs)
+
+The result is kept on disk, and since early October it is one set for every 3D scale: changing the scale no longer means compiling anything again. [How →](technical.md#17-one-pipeline-set-for-every-scale)
+
+| Measured on an RTX 3080 | |
+|---|---|
+| Preparing all four discs, the first time | from about 12 seconds to about a quarter of an hour, depending on what the driver already has cached |
+| Later launches, Direct3D 12 | about 3 s |
+| Later launches, Vulkan | about 2 s |
 
 ### SMAA
 
@@ -80,13 +100,21 @@ Those assets are read at runtime from your own copy of the game. Nothing from th
 
 It works like the native page: up and down to move, left and right to change a value, **LB/RB** to switch tabs, **B** to go back to the game's own options. Changes that can apply immediately do. Those that need a restart are saved, and the page offers to restart the game — pressing A twice, so an accidental press never costs you unsaved progress. [How the tabs are built →](technical.md#7-new-menu-pages-that-look-native)
 
-The old **F2** overlay still exists during development and is on its way out.
+The **Extras** tab also holds the language, the shader preparation choice and a restart button. The old **F2** overlay still exists during development, now with an fps counter, and is on its way out.
 
 ### Game patches, toggleable at runtime
 
 The community patches from Xenia Canary (original patch work by **boma**) are reimplemented as recompiler hooks rather than byte patches, so each one is a switch you can flip while playing:
 
-60 fps · character flicker fix · disable occlusion queries · post-process upscale fix · disable depth of field · disable motion blur · 16× anisotropic filtering · disable dynamic shadows
+60 fps · disable depth of field · disable motion blur · disable dynamic shadows · **fade between scenes** (new: a clean cut instead of a crossfade that the sharp-interface layer cannot reproduce)
+
+Some are no longer switches, because there is only one right answer: the post-process upscale fix and 16× anisotropic filtering are always on. The occlusion-query patch is gone for a reason worth knowing: it froze enemies. [Why →](technical.md#20-a-patch-that-froze-the-enemies)
+
+### Softer shadows
+
+The game's dynamic shadows had a hard, stepped edge and some flicker on characters. The port gives them a linear penumbra and filters the shadow map, with a softness setting.
+
+The shadow map itself is a fixed 864×864 in the game, sized to the console's memory. A higher 3D scale is what makes shadows sharper.
 
 ### No random encounters
 
@@ -120,7 +148,11 @@ Extracted folders are the recommended form, but **ISO images** and **Games on De
 
 ### Texture replacement
 
-Replace any texture with a PNG and reload the pack in place with **F7** — no restart, no repacking.
+Replace any texture with a PNG or a DDS (BC1, BC3 or BC7) and reload the pack in place with **F7** — no restart, no repacking.
+
+HD textures are loaded in the background: an area appears with its original textures for a moment and switches to HD as each one is ready, instead of stopping the game while they load. [How →](technical.md#19-hd-textures-without-hitches)
+
+An upscaled pack for the whole game — 8,245 textures of characters, places, objects and battles, about 32 GB in BC7 — is in testing. Like everything made from the game's data, it will not be distributed here.
 
 Textures are matched by a hash of their contents rather than by memory address, so a pack keeps working across sessions and save files.
 
@@ -135,6 +167,14 @@ Instead, the port's tooling identifies the typeface each atlas was made from, fi
 ### DualSense button prompts
 
 The game's button glyph atlas is one of those replaceable textures, so the on-screen prompts can show PlayStation glyphs instead of the Xbox ones the 2007 release hardcoded. No patching, no separate build — it ships as part of the texture pack.
+
+### Six languages
+
+The game's text in English, French, German, Italian, Spanish or Japanese, chosen from the **Extras** tab. The port's own menus and screens follow the same language. Voices are chosen, as on the console, in the game's own Configuration.
+
+### Saves next to the game
+
+Saves live in a plain `SAVE\` folder next to the executable, one folder per slot. Saves from earlier builds are moved there automatically on the first launch.
 
 ### Turbo
 
