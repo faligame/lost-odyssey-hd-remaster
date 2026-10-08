@@ -45,24 +45,21 @@ Lost Odyssey came out on Xbox 360 in 2007 and never left it. This project rebuil
 
 ### DLSS
 
-The same scene with the 3D rendered at 720p and upscaled, without and with DLSS.
+The same scene, with the 3D upscaled without DLSS and with DLSS Quality.
 
-<!-- PLACEHOLDER: media/dlss-off.png y media/dlss-on.png -->
-| DLSS off | DLSS Quality |
-|---|---|
-| *(screenshot coming soon)* | *(screenshot coming soon)* |
+![DLSS off and on](media/dlss-slider.webp)
+
+Full size: [DLSS off](media/dlss-off.png) · [DLSS on](media/dlss-on.png)
 
 ### Ultrawide
 
-<!-- PLACEHOLDER: media/ultrawide.png -->
-*(screenshot coming soon)*
+![21:9](media/ultrawide.png)
 
 ### HD textures
 
-<!-- PLACEHOLDER: media/hd-textures-before.png y media/hd-textures-after.png -->
-| Original | HD pack |
-|---|---|
-| *(screenshot coming soon)* | *(screenshot coming soon)* |
+![Original textures and the HD pack](media/hd-textures-slider.webp)
+
+Full size: [original](media/hd-textures-before.png) · [HD pack](media/hd-textures-after.png)
 
 ### An interface that stays put
 
@@ -82,7 +79,6 @@ The same line of dialogue, enlarged. Original above, this port below.
 
 Press **RB** on the game's Configuration screen and four new tabs appear, drawn with the game's own font, panels and cursor.
 
-<!-- PLACEHOLDER: sustituir media/in-game-settings.png por la pestaña Gráficos nueva (Resolución, Escala 3D, DLSS, Nitidez 3D) -->
 ![Graphics tab inside the game's own Configuration screen](media/in-game-settings.png)
 
 ![Extras tab](media/extras-tab.png)
@@ -95,12 +91,10 @@ Press **RB** on the game's Configuration screen and four new tabs appear, drawn 
 
 On the first launch the port reads your discs and prepares the game's shaders, on a screen made from the game's own fonts and textures.
 
-<!-- PLACEHOLDER: media/shader-prep.png -->
-*(screenshot coming soon)*
+![Preparing shaders](media/shader-prep.png)
 
 ### Title screen
 
-<!-- PLACEHOLDER: sustituir media/title-screen.png por el título con el logo "HD Remaster" -->
 ![Title screen](media/title-screen.png)
 
 ---

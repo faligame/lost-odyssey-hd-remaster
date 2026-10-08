@@ -45,24 +45,21 @@ Lost Odyssey salió en Xbox 360 en 2007 y nunca salió de ahí. Este proyecto re
 
 ### DLSS
 
-La misma escena con el 3D dibujado a 720p y ampliado, sin DLSS y con DLSS.
+La misma escena, con el 3D ampliado sin DLSS y con DLSS Calidad.
 
-<!-- PLACEHOLDER: media/dlss-off.png y media/dlss-on.png -->
-| Sin DLSS | DLSS Calidad |
-|---|---|
-| *(captura próximamente)* | *(captura próximamente)* |
+![Sin DLSS y con DLSS](media/dlss-slider.webp)
+
+A tamaño completo: [sin DLSS](media/dlss-off.png) · [con DLSS](media/dlss-on.png)
 
 ### Panorámico
 
-<!-- PLACEHOLDER: media/ultrawide.png -->
-*(captura próximamente)*
+![21:9](media/ultrawide.png)
 
 ### Texturas HD
 
-<!-- PLACEHOLDER: media/hd-textures-before.png y media/hd-textures-after.png -->
-| Original | Pack HD |
-|---|---|
-| *(captura próximamente)* | *(captura próximamente)* |
+![Texturas originales y pack HD](media/hd-textures-slider.webp)
+
+A tamaño completo: [original](media/hd-textures-before.png) · [pack HD](media/hd-textures-after.png)
 
 ### Una interfaz que no se mueve
 
@@ -82,7 +79,6 @@ La misma línea de diálogo, ampliada. Arriba el original, abajo este port.
 
 Pulsa **RB** en la pantalla de Configuración del juego y aparecen cuatro pestañas nuevas, dibujadas con la fuente, los paneles y el cursor del propio juego.
 
-<!-- PLACEHOLDER: sustituir media/in-game-settings.png por la pestaña Gráficos nueva (Resolución, Escala 3D, DLSS, Nitidez 3D) -->
 ![Pestaña Gráficos dentro de la pantalla de Configuración del juego](media/in-game-settings.png)
 
 ![Pestaña Extras](media/extras-tab.png)
@@ -95,12 +91,10 @@ Pulsa **RB** en la pantalla de Configuración del juego y aparecen cuatro pesta�
 
 En el primer arranque el port lee tus discos y prepara los shaders del juego, en una pantalla hecha con las fuentes y las texturas del propio juego.
 
-<!-- PLACEHOLDER: media/shader-prep.png -->
-*(captura próximamente)*
+![Preparando sombreadores](media/shader-prep.png)
 
 ### Pantalla de título
 
-<!-- PLACEHOLDER: sustituir media/title-screen.png por el título con el logo "HD Remaster" -->
 ![Pantalla de título](media/title-screen.png)
 
 ---
