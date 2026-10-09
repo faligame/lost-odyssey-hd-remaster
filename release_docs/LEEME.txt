@@ -1,0 +1,79 @@
+LOST ODYSSEY HD REMASTER  -  versión 0.0.1 (muy temprana: tiene MUCHOS fallos)
+================================================================================
+
+Port no oficial para PC de Lost Odyssey (Xbox 360). NO incluye el juego: necesitas tu propia copia de los 4 discos
+(edición USA/Europa; el disco 1 es obligatorio). No tiene relación con Microsoft, Mistwalker ni Square Enix.
+
+VERSIÓN DEL JUEGO COMPATIBLE
+  Lost Odyssey de Xbox 360, edición "USA, Europe" (la multilenguaje: inglés, japonés, francés, alemán, español e italiano
+  en los mismos discos), los 4 discos. Title ID 4D5307FA. Media ID: disco 1 368DE6DD, disco 2 1888BE4E, disco 3 6DD59D08,
+  disco 4 0C0E80B5. SHA-256 del default.xex del disco 1: 175ae53d109d480a83bebbd186e7b6871f7b03ce80af69ab388db2f747640de3.
+  Carpetas extraídas, imágenes .iso o paquetes Games on Demand. NO está admitida la edición asiática.
+
+PROBADO SOLO EN UN PC
+  Windows 11 Pro, Intel Core i9-10850K, 32 GB de RAM, NVIDIA GeForce RTX 3080 (10 GB). El rendimiento y la preparación de
+  sombreadores están ajustados a ese equipo: en otro (AMD/Intel, portátiles, Windows 10, Steam Deck) puede ir distinto.
+
+REQUISITOS
+  - Windows 10/11 de 64 bits.
+  - Tarjeta gráfica con Direct3D 12 o Vulkan (se recomienda NVIDIA/AMD recientes; DLSS solo en RTX).
+  - 16 GB de RAM recomendados.
+  - Espacio: unos 17 GB para los 4 discos instalados (lo igual entre discos se guarda una vez, en data\common) en la carpeta del juego (opcional: también se pueden leer donde
+    estén: carpeta extraída, imagen .iso o paquete GOD) y unos 28 GB para el pack de texturas HD (opcional), más la caché.
+  - Instálalo en una carpeta con permiso de escritura (NO en Archivos de programa).
+
+INSTALACIÓN
+  1. Descomprime todo en una carpeta, por ejemplo C:\Juegos\LostOdysseyHD.
+  2. Ejecuta lostodyssey.exe. La primera vez se abre el asistente: elige tus discos (se verifican), instálalos en la
+     carpeta del juego (recomendado: después no necesitas los discos y puedes copiar la carpeta entera) o úsalos donde
+     estén, si quieres descargar ahora el pack de texturas HD (~28 GB) o más tarde, y la preparación de sombreadores.
+     RECOMENDADO: elige preparar los sombreadores de TODOS los discos. Tarda unos minutos por disco, una sola vez, y
+     después el juego va sin tirones ni texturas que aparecen tarde.
+  3. Pulsa Jugar. La descarga del pack continúa mientras juegas y se reanuda si se corta.
+  ACTUALIZACIONES: el juego busca versiones nuevas firmadas en GitHub y te las ofrece (Actualizar ahora / Más tarde /
+  Saltar esta versión). Nunca toca tus partidas, tu configuración ni los discos instalados.
+  Para repetir el asistente: lostodyssey.exe --lo_setup=true
+
+LO QUE SE GUARDA (todo junto al exe, portable)
+  data\  los discos instalados (discN\ y common\)     config\  configuración      saves\  partidas y perfil
+  cache\  sombreadores (se puede borrar)      logs\  registros e informes de cierre      textures.lopack  pack HD
+
+OPCIONES
+  F2 abre el menú de opciones del port; en la Configuración del juego hay pestañas Gráficos, Parches, Extras y Texturas
+  (ahí está el botón para descargar el pack HD si no lo tienes).
+
+SI EL JUEGO SE CIERRA
+  La próxima vez que lo abras te ofrecerá abrir en GitHub un informe ya rellenado (versión, tarjeta gráfica y dónde falló).
+  Revísalo y pulsa Enviar. No se envía nada solo ni se incluyen datos personales ni del juego.
+
+PROBLEMAS CONOCIDOS DE LA 0.0.1
+  Cierres y cuelgues ocasionales, texturas que aparecen tarde la primera vez que se visita una zona, Linux sin soportar,
+  solo la edición USA/Europa (multilenguaje, ver arriba). Probado en un solo PC. Haz copia de tus partidas (carpeta saves).
+
+LICENCIAS
+  Ver la carpeta LICENSES. Este port usa el SDK ReXGlue (MIT), código derivado de Xenia (BSD) y otras bibliotecas de código abierto.
+  DLSS es tecnología de NVIDIA, usada bajo su licencia.
+
+================================================================================
+ENGLISH
+================================================================================
+Unofficial PC port of Lost Odyssey (Xbox 360). The game is NOT included: you need your own copy of the 4 discs
+(USA/Europe edition; disc 1 is required). Not affiliated with Microsoft, Mistwalker or Square Enix.
+Version 0.0.1 is very early and has MANY bugs.
+
+Compatible game version: Lost Odyssey for Xbox 360, the "USA, Europe" release (multi-language: English, Japanese,
+French, German, Spanish, Italian on the same discs), all 4 discs. Title ID 4D5307FA; disc media IDs 368DE6DD, 1888BE4E,
+6DD59D08, 0C0E80B5; disc 1 default.xex SHA-256 175ae53d109d480a83bebbd186e7b6871f7b03ce80af69ab388db2f747640de3.
+Extracted folders, .iso images or Games on Demand packages. The Asian edition is NOT supported.
+Tested on ONE PC only: Windows 11 Pro, Intel Core i9-10850K, 32 GB RAM, NVIDIA GeForce RTX 3080 (10 GB). Performance and
+shader preparation are tuned to it; other hardware (AMD/Intel GPUs, laptops, Windows 10, Steam Deck) may behave differently.
+Recommended: let the installer prepare the shaders for ALL discs (a few minutes per disc, once): no stutter or late textures afterwards.
+The game checks GitHub for newer signed versions and offers them (Update now / Later / Skip); it never touches your saves, settings or discs.
+
+Requirements: Windows 10/11 64-bit, a Direct3D 12 or Vulkan GPU, 16 GB RAM recommended, ~17 GB to install the 4 discs
+(optional; files identical across discs are stored once in data\common) and ~28 GB for the optional HD texture pack. Install in a writable folder (not Program Files).
+Install: extract everything, run lostodyssey.exe, follow the wizard (verify your discs, install them into the game folder
+(recommended) or read them in place, choose whether to download the HD texture pack now or later, shader preparation), press Play. Re-run the wizard with: lostodyssey.exe --lo_setup=true
+Everything is stored next to the exe (config\, saves\, cache\, logs\). F2 opens the options menu.
+If the game crashes, next launch it offers to open a pre-filled GitHub issue (nothing is sent automatically; no personal
+or game data is included). Licenses: see the LICENSES folder.

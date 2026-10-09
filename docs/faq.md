@@ -2,17 +2,15 @@
 
 ### Where is the source code?
 
-Not published yet.
+Here. The port's own code is open under the MIT licence: the game executable (`project/`), the GPU plugin (`xenos_fork/`), the tools (`tools/`) and the developer notes (`docs/dev/`). See [Building from source](building.md).
 
-The port is in active development and large parts of it are still moving — the renderer fork in particular. Publishing it in this state would mean half-working forks and broken builds circulating under the project's name while the real thing is still being fixed. The source will be opened when the port is finished enough that what people build actually represents it.
-
-In the meantime this repository exists so the work is visible: what it does, how it does it, and what is left.
+What is **not** here, on purpose: the game's code and assets, the recompiled code generated from your disc (`generated/`), and the HD texture pack (encrypted, downloaded by the game and only opened by your discs).
 
 ### Will there be a download?
 
-Eventually, of a *patcher* — never of the game.
+Yes: test builds of the port itself under [Releases](../../releases) — never the game.
 
-Any release would require you to supply your own legally obtained copy of Lost Odyssey. No game code, no game assets, and no recompiled executable will ever be distributed here. That is not only a legal position, it's the practical one: it is what keeps projects like this online.
+A release needs your own legally obtained copy of Lost Odyssey: the installer asks for your discs, checks them and copies their files. No game code and no game assets are ever distributed here. That is not only a legal position, it's the practical one: it is what keeps projects like this online.
 
 ### What will I need to play it?
 

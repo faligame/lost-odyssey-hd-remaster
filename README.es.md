@@ -6,8 +6,8 @@
 
 ![Lost Odyssey HD Remaster](media/hero.png)
 
-> **Estado:** en desarrollo · jugable · código aún no publicado · sin descargas
-> Este repositorio es una ventana al progreso, no una release. Ver las [preguntas frecuentes](docs/faq.md).
+> **Estado:** versión de prueba v0.0.1 — jugable, con muchos fallos conocidos · código abierto (MIT) · trae tus propios discos
+> Las descargas aparecerán en [Releases](../../releases) cuando se publique la primera versión. Mira las [preguntas frecuentes](docs/faq.md).
 
 Lost Odyssey salió en Xbox 360 en 2007 y nunca salió de ahí. Este proyecto reconstruye el código original del juego como un programa de Windows de verdad —**no es un emulador**— y le da después lo que le daría una remasterización.
 
@@ -93,9 +93,19 @@ En el primer arranque el port lee tus discos y prepara los shaders del juego, en
 
 ![Preparando sombreadores](media/shader-prep.png)
 
+> **Recomendado: deja que compile todos los shaders** (elige *todos los discos* en el instalador o en Config → Extras). La primera vez tarda unos minutos por disco, pero después el juego va sin tirones ni aparición de texturas en todos los discos. Elegir solo la parte actual funciona, pero habrá tirones al llegar por primera vez a cada zona nueva.
+
 ### Pantalla de título
 
 ![Pantalla de título](media/title-screen.png)
+
+---
+
+## Versión del juego compatible y equipo de pruebas
+
+Funciona con la edición **"USA, Europe" de Lost Odyssey (Xbox 360), los cuatro discos** — la multilenguaje: inglés, japonés, francés, alemán, español e italiano. El instalador comprueba tus discos con hashes conocidos; la edición asiática aún no está admitida.
+
+Todo se ajustó en **un solo PC** (Windows 11, Core i9-10850K, 32 GB de RAM, GeForce RTX 3080 de 10 GB). No se ha probado con nada más, así que otro equipo puede comportarse distinto. Detalles: [Compatibilidad y equipo de pruebas](docs/compatibility.md).
 
 ---
 
@@ -112,7 +122,7 @@ En el primer arranque el port lee tus discos y prepara los shaders del juego, en
 
 La parte honesta: todos los cierres que conocemos están arreglados, pero nadie ha jugado todavía esta versión desde el primer minuto hasta los créditos. La capa de interfaz nítida es lo más reciente en Vulkan, y algunas escalas 3D (×1,25, ×1,75 y otros cuartos) solo se han probado por encima. En pantallas panorámicas los vídeos aún salen estirados.
 
-No hay descarga. Cuando la haya, hará falta tu propia copia del juego.
+La primera versión de prueba (v0.0.1) es para quien quiera probarla y avisar de los cierres: el propio juego los comunica (abre un informe de GitHub ya rellenado). Siempre hace falta tu propia copia del juego.
 
 ---
 
@@ -121,7 +131,9 @@ No hay descarga. Cuando la haya, hará falta tu propia copia del juego.
 - **[Características en detalle](docs/features.es.md)** — qué hace cada una, y la lista completa de fallos arreglados.
 - **[Notas técnicas](docs/technical.md)** — cómo se hizo, para quien quiera hacer lo mismo con otro juego. En inglés.
 - **[Registro de avances](docs/progress.md)** — qué cambió y cuándo. En inglés.
-- **[Preguntas frecuentes](docs/faq.md)** — dónde está el código, qué hará falta para jugar y más. En inglés.
+- **[Preguntas frecuentes](docs/faq.md)** — qué hace falta para jugar y más. En inglés.
+- **[Notas de la v0.0.1](docs/releases/v0.0.1.md)** y [cómo se publican versiones y actualizaciones](docs/releasing.md).
+- **[Compilar desde el código](docs/building.md)** (en inglés) y las [notas de desarrollo](docs/dev/README.md) (en español).
 
 ---
 
@@ -144,8 +156,6 @@ Apoyado en el trabajo de otros:
 
 ## Aviso legal
 
-Este repositorio no contiene **código del juego, ni recursos del juego, ni ejecutables**: solo documentación y capturas.
+Este repositorio contiene el **código fuente del port** (MIT, ver [LICENSE](LICENSE) y [THIRD_PARTY.md](THIRD_PARTY.md)). **No contiene código del juego, ni recursos del juego, ni código recompilado, ni ejecutables**: el código recompilado se genera en tu equipo a partir de tu propio disco, y el pack de texturas HD va cifrado y solo se abre con los discos con los que se hizo.
 
-Lost Odyssey es © Microsoft / Mistwalker / Feelplus. Este es un proyecto de preservación y porteo sin afiliación y sin ánimo de lucro. Aquí nunca se distribuirá el juego: cualquier release futura exigirá aportar una copia propia obtenida legalmente.
-
-La documentación de este repositorio es © su autor. Todos los derechos reservados.
+Lost Odyssey es © Microsoft / Mistwalker / Feelplus. Este es un proyecto de preservación y porteo sin afiliación y sin ánimo de lucro. Aquí no se distribuye el juego: hace falta tu propia copia obtenida legalmente.

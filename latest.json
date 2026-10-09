@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "version": "0.0.1",
+  "size": 77081413,
+  "sha256": "2160750c2c114747dbfb8b39bfe191d47247c84abe8c6f4d8d9081498daa8ad8",
+  "url": "https://github.com/faligame/lost-odyssey-hd-remaster/releases/download/v0.0.1/LostOdysseyHD-0.0.1-win64.zip",
+  "notes_en": "First test build (many bugs). Tested on one PC only. Recommended: compile all the shaders for a better experience.",
+  "notes_es": "Primera versión de prueba (muchos fallos). Probada en un solo PC. Recomendado: compilar todos los shaders para una mejor experiencia."
+}

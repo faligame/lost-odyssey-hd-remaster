@@ -1,0 +1,95 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#define XE_RESOLVE_CLEAR
+#include "resolve.xesli"
+
+array_buffer_wo_declare_xe(uint4_xe, xe_resolve_edram, set=0, binding=0, u0,
+                           space0)
+#define LOCAL_SIZE_X_XE 8
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
+  XE_RESOLVE_PUSH_CONST_BINDING
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_resolve_edram, buffer(1))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
+  // 1 thread = 8 host samples (same as the resolve granularity at 1x1 scale).
+  XeResolveInfo resolve_info = XeResolveGetInfo(pass_push_consts_xe);
+  uint2_xe extent_scale = uint2_xe(greater_than_equal_xe(
+      uint_x2_xe(resolve_info.edram_msaa_samples),
+      uint2_xe(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
+  // Fork (odisea): escala fraccionaria. Los hilos van por bloques de 8
+  // pixeles del invitado, que son block_host muestras del host (2q, a x1.5 12):
+  // en X cada hilo borra 8 muestras y el ultimo del bloque solo las que le
+  // quedan; en Y los bloques van rellenados a multiplos de 8 filas (el
+  // despacho de C++ lo hace igual, ver GetClearShaderGroupCount). Asi nunca se
+  // borra fuera del rectangulo. Con escala entera es la identidad.
+  #ifdef XE_RESOLVE_RESOLUTION_SCALED
+    dont_flatten_xe
+    if (resolve_info.resolution_scale_fractional) {
+      uint2_xe block_host = ((uint_x2_xe(8u) * resolve_info.resolution_scale_q)
+                             >> 2u) << extent_scale;
+      uint threads_per_block_x = (block_host.x + 7u) >> 3u;
+      uint rows_per_block_padded = (block_host.y + 7u) & ~7u;
+      uint block_x = in_global_thread_id_xe.x / threads_per_block_x;
+      uint block_y = in_global_thread_id_xe.y / rows_per_block_padded;
+      uint x_in_block =
+          (in_global_thread_id_xe.x - block_x * threads_per_block_x) << 3u;
+      uint y_in_block = in_global_thread_id_xe.y - block_y * rows_per_block_padded;
+      dont_flatten_xe
+      if (block_x >= resolve_info.width_div_8_scaled /
+                         resolve_info.resolution_scale.x ||
+          y_in_block >= block_host.y) {
+        return;
+      }
+      uint2_xe sample_host =
+          uint2_xe(block_x * block_host.x + x_in_block,
+                   block_y * block_host.y + y_in_block) +
+          (resolve_info.edram_offset_scaled << extent_scale);
+      uint i;
+      unroll_xe for (i = 0u; i < 4u; ++i) {
+        dont_flatten_xe
+        if (x_in_block + (i << 1u) < block_host.x) {
+          array_buffer_store_xe(
+              xe_resolve_edram,
+              XeEdramOffsetInts(sample_host + uint2_xe(i << 1u, 0u),
+                                resolve_info.edram_base_tiles, true,
+                                resolve_info.edram_pitch_tiles,
+                                kXenosMsaaSamples_1X, false, 1u, 0u,
+                                resolve_info.resolution_scale_q) >> 2u,
+              resolve_info.clear_value.xyxy);
+        }
+      }
+      return;
+    }
+  #endif
+  // Group height can't cross resolve granularity, Y overflow check not needed.
+  dont_flatten_xe
+  if (in_global_thread_id_xe.x >=
+      resolve_info.width_div_8_scaled << extent_scale.x) {
+    return;
+  }
+  uint address_int4s =
+      XeEdramOffsetInts(
+          (in_global_thread_id_xe.xy << uint2_xe(3u, 0u)) +
+              (resolve_info.edram_offset_scaled << extent_scale),
+          resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
+          kXenosMsaaSamples_1X, false, 1u, 0u, resolve_info.resolution_scale_q)
+      >> 2u;
+  uint i;
+  unroll_xe for (i = 0u; i < 4u; ++i) {
+    array_buffer_store_xe(xe_resolve_edram, address_int4s + i,
+                          resolve_info.clear_value.xyxy);
+  }
+}
+entry_code_end_compute_xe

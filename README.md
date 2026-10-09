@@ -6,8 +6,8 @@
 
 ![Lost Odyssey HD Remaster](media/hero.png)
 
-> **Status:** in development · playable · source not public yet · no downloads
-> This repository is a progress window, not a release. See the [FAQ](docs/faq.md).
+> **Status:** v0.0.1 test build — playable, with many known bugs · source open (MIT) · bring your own discs
+> Downloads will appear under [Releases](../../releases) when the first build is published. See the [FAQ](docs/faq.md).
 
 Lost Odyssey came out on Xbox 360 in 2007 and never left it. This project rebuilds the original game code as a real Windows program — **not an emulator** — and then gives it what a remaster would.
 
@@ -93,9 +93,19 @@ On the first launch the port reads your discs and prepares the game's shaders, o
 
 ![Preparing shaders](media/shader-prep.png)
 
+> **Recommended: let it compile all the shaders** (choose *all discs* in the installer or in Config → Extras). The first run takes a few minutes per disc, but afterwards the game plays without stutter or texture pop-in on every disc. Choosing only the current part works, but you will see hitches whenever you reach a new area for the first time.
+
 ### Title screen
 
 ![Title screen](media/title-screen.png)
+
+---
+
+## Compatible game version and tested hardware
+
+Works with the **"USA, Europe" release of Lost Odyssey (Xbox 360), all four discs** — the multi-language one: English, Japanese, French, German, Spanish and Italian. The installer checks your discs against known hashes; the Asian edition is not supported yet.
+
+Everything was tuned on **one PC** (Windows 11, Core i9-10850K, 32 GB RAM, GeForce RTX 3080 10 GB). It has not been tested on anything else, so other hardware may behave differently. Details: [Compatibility and test hardware](docs/compatibility.md).
 
 ---
 
@@ -112,7 +122,7 @@ On the first launch the port reads your discs and prepares the game's shaders, o
 
 The honest part: every crash we know of is fixed, but nobody has played this build from the first minute to the credits yet. The sharp-interface layer is newest on Vulkan, and some 3D scales (×1.25, ×1.75 and other quarter steps) have only been lightly tested. On ultrawide screens videos are still stretched.
 
-There is no download. When there is one, it will need your own copy of the game.
+The first test build (v0.0.1) is meant for people who want to try it and report crashes: the game reports them itself (it opens a pre-filled GitHub issue). It always needs your own copy of the game.
 
 ---
 
@@ -121,7 +131,9 @@ There is no download. When there is one, it will need your own copy of the game.
 - **[Features in detail](docs/features.md)** — what each feature does, and the full list of fixed bugs.
 - **[Technical notes](docs/technical.md)** — how it was done, for people doing the same to another game.
 - **[Progress log](docs/progress.md)** — what changed and when.
-- **[FAQ](docs/faq.md)** — where the source is, what you will need to play, and more.
+- **[FAQ](docs/faq.md)** — what you will need to play, and more.
+- **[v0.0.1 release notes](docs/releases/v0.0.1.md)** and [how releases and updates are published](docs/releasing.md).
+- **[Building from source](docs/building.md)** and the [developer notes](docs/dev/README.md).
 
 ---
 
@@ -144,8 +156,6 @@ Standing on other people's work:
 
 ## Legal
 
-This repository contains **no game code, no game assets, and no executables** — only documentation and screenshots.
+This repository contains the **source code of the port** (MIT, see [LICENSE](LICENSE) and [THIRD_PARTY.md](THIRD_PARTY.md)). It contains **no game code, no game assets, no recompiled code and no executables**: the recompiled code is generated on your machine from your own disc, and the HD texture pack is encrypted and only opens with the discs it was made from.
 
-Lost Odyssey is © Microsoft / Mistwalker / Feelplus. This is an unaffiliated, non-commercial preservation and porting effort. Nothing here will ever distribute the game: any future release would require you to supply your own legally obtained copy.
-
-Documentation in this repository is © its author. All rights reserved.
+Lost Odyssey is © Microsoft / Mistwalker / Feelplus. This is an unaffiliated, non-commercial preservation and porting effort. Nothing here distributes the game: you need your own legally obtained copy.

@@ -1,0 +1,2 @@
+db2df1fcbebc2ed06c10f727f72567d40f06a2be 2023-10-22
+https://github.com/jackoalan/lzokay (MIT, sin modificar)

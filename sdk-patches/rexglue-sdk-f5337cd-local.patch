@@ -1,0 +1,782 @@
+diff --git a/include/rex/system/xam/content_manager.h b/include/rex/system/xam/content_manager.h
+index 949d185..46c0017 100644
+--- a/include/rex/system/xam/content_manager.h
++++ b/include/rex/system/xam/content_manager.h
+@@ -144,6 +144,9 @@ class ContentManager {
+   ContentManager(KernelState* kernel_state, const std::filesystem::path& root_path);
+   ~ContentManager();
+ 
++  // Partidas del juego en marcha en carpeta plana (cvar savegame_root).
++  bool UsesFlatSavegames(XContentType content_type, uint32_t title_id) const;
++
+   std::vector<XCONTENT_AGGREGATE_DATA> ListContent(uint32_t device_id, uint64_t xuid,
+                                                    XContentType content_type,
+                                                    uint32_t title_id = -1);
+diff --git a/include/rex/system/xmemory.h b/include/rex/system/xmemory.h
+index 0c39a42..6ef8564 100644
+--- a/include/rex/system/xmemory.h
++++ b/include/rex/system/xmemory.h
+@@ -109,6 +109,31 @@ struct HeapAllocationInfo {
+   uint32_t protect;
+ };
+ 
++// DIAGNOSTICO TEMPORAL (fuga de la ventana de sistema, 27-sep-2026).
++// Cada reserva de SystemHeapAlloc se redondea a una pagina de 4 KB y solo puede
++// vivir en los ultimos 256 MB del monton virtual de 4 KB, asi que una fuga ahi
++// mata la partida en minutos. Estos contadores dicen QUE sitio reserva y si
++// libera; SystemHeapAlloc los vuelca al log cada 8192 reservas.
++enum class SystemHeapOrigin : uint32_t {
++  kThreadPcr,
++  kThreadTls,
++  kThreadScratch,
++  kThreadFree,
++  kXamAlloc,
++  kXamFree,
++  kApcAlloc,
++  kApcFree,
++  kFiberAlloc,
++  kFiberFree,
++  kObjectNative,
++  kObjectFree,
++  kStringAlloc,
++  kStringFree,
++  kCount,
++};
++
++void SystemHeapNote(SystemHeapOrigin origin);
++
+ // Describes a single page in the page table.
+ union PageEntry {
+   uint64_t qword;
+diff --git a/src/audio/xma_context.cpp b/src/audio/xma_context.cpp
+index 11b83be..2896ecd 100644
+--- a/src/audio/xma_context.cpp
++++ b/src/audio/xma_context.cpp
+@@ -9,6 +9,7 @@
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+ 
++#include <atomic>
+ #include <algorithm>
+ #include <cstring>
+ 
+@@ -397,29 +398,99 @@ kPacketInfo XmaContext::GetPacketInfo(uint8_t* packet, uint32_t frame_offset) {
+   return packet_info;
+ }
+ 
+-void XmaContext::StoreContextMerged(const XMA_CONTEXT_DATA& data,
+-                                    const XMA_CONTEXT_DATA& initial_data, uint8_t* context_ptr) {
+-  XMA_CONTEXT_DATA fresh(context_ptr);
++namespace {
+ 
+-  fresh.loop_count = data.loop_count;
+-  fresh.output_buffer_write_offset = data.output_buffer_write_offset;
+-  if (initial_data.input_buffer_0_valid && !data.input_buffer_0_valid) {
+-    fresh.input_buffer_0_valid = 0;
+-  }
+-  if (initial_data.input_buffer_1_valid && !data.input_buffer_1_valid) {
+-    fresh.input_buffer_1_valid = 0;
+-  }
++uint32_t SwapWord(uint32_t v) {
++  return (v >> 24) | ((v >> 8) & 0x0000FF00u) | ((v << 8) & 0x00FF0000u) | (v << 24);
++}
+ 
+-  if (initial_data.output_buffer_valid && !data.output_buffer_valid) {
+-    fresh.output_buffer_valid = 0;
++// Campos del contexto que escribe el decodificador, por palabra (valor ya en el
++// orden del anfitrion, bits contados desde el menos significativo; ver
++// XMA_CONTEXT_DATA en context.h).
++struct CampoXma {
++  int palabra;
++  uint32_t mascara;
++  bool solo_borrar;  // bits de "valido": el decodificador solo los pone a 0
++};
++
++constexpr CampoXma kCamposDelDecodificador[] = {
++    {0, 0x000FF000u, false},  // loop_count
++    {0, 0x00100000u, true},   // input_buffer_0_valid
++    {0, 0x00200000u, true},   // input_buffer_1_valid
++    {0, 0xF8000000u, false},  // output_buffer_write_offset
++    {1, 0x80000000u, true},   // output_buffer_valid
++    {2, 0x03FFFFFFu, false},  // input_buffer_read_offset
++    {2, 0x7C000000u, false},  // error_status
++    {4, 0x80000000u, false},  // current_buffer
++    {9, 0x0000001Fu, false},  // output_buffer_read_offset (cursor del CONSUMIDOR)
++};
++
++}  // namespace
++
++// ARREGLO (27-sep-2026, Lost Odyssey). Antes esto leia una copia "fresca" del
++// contexto, le aplicaba los cambios del decodificador y la escribia ENTERA de
++// vuelta. Si entre la lectura y la escritura el juego tocaba el contexto desde
++// otro hilo (por ejemplo, entregando un bufer nuevo: puntero en +20/+24 y bit de
++// valido en la palabra 0), esa escritura del juego se perdia. Y ademas se
++// reescribia siempre output_buffer_read_offset, que es el cursor del juego que
++// consume el audio, devolviendolo a un valor viejo. Con muchas voces a la vez
++// (la escena posterior al jefe Mack) eso deja el estado de XACT incoherente:
++// buferes con puntero nulo y punteros basura, y el juego se cierra.
++//
++// Ahora solo se publica cada campo que el decodificador CAMBIO de verdad, y solo
++// si el juego no lo cambio mientras tanto; cada palabra se actualiza con una
++// comparacion e intercambio atomica sobre la memoria del guest, asi que una
++// escritura del juego que llegue en medio obliga a repetir en vez de perderse.
++// Las palabras que no tienen campos del decodificador (punteros, tamanos del
++// juego) no se escriben nunca.
++//
++// La idea de publicar solo lo que es del decodificador y respetar el cursor del
++// consumidor viene de la investigacion de freefrank/LostOdysseyRecomp
++// (docs/notes/audio-output.md); el codigo es propio.
++void XmaContext::StoreContextMerged(const XMA_CONTEXT_DATA& data,
++                                    const XMA_CONTEXT_DATA& initial_data, uint8_t* context_ptr) {
++  uint32_t nuevo[sizeof(XMA_CONTEXT_DATA) / 4];
++  uint32_t inicial[sizeof(XMA_CONTEXT_DATA) / 4];
++  std::memcpy(nuevo, &data, sizeof(nuevo));
++  std::memcpy(inicial, &initial_data, sizeof(inicial));
++
++  for (int palabra : {0, 1, 2, 4, 9}) {
++    std::atomic_ref<uint32_t> destino(reinterpret_cast<uint32_t*>(context_ptr)[palabra]);
++    uint32_t actual_be = destino.load(std::memory_order_acquire);
++    for (;;) {
++      const uint32_t actual = SwapWord(actual_be);
++      uint32_t resultado = actual;
++      for (const CampoXma& campo : kCamposDelDecodificador) {
++        if (campo.palabra != palabra) {
++          continue;
++        }
++        const uint32_t de_inicio = inicial[palabra] & campo.mascara;
++        const uint32_t del_decodificador = nuevo[palabra] & campo.mascara;
++        const uint32_t del_juego = actual & campo.mascara;
++        if (del_decodificador == de_inicio) {
++          continue;  // el decodificador no lo toco
++        }
++        if (campo.solo_borrar) {
++          // Solo se borra el bit si el decodificador lo consumio y sigue puesto.
++          if (de_inicio != 0 && del_decodificador == 0) {
++            resultado &= ~campo.mascara;
++          }
++        } else if (del_juego == de_inicio) {
++          // El juego no lo cambio mientras se decodificaba: gana el decodificador.
++          resultado = (resultado & ~campo.mascara) | del_decodificador;
++        }
++        // Si el juego lo cambio (reinicio el stream, avanzo su cursor...), gana el juego.
++      }
++      if (resultado == actual) {
++        break;
++      }
++      if (destino.compare_exchange_weak(actual_be, SwapWord(resultado), std::memory_order_acq_rel,
++                                        std::memory_order_acquire)) {
++        break;
++      }
++      // El juego escribio esa palabra justo ahora: repetir con su valor nuevo.
++    }
+   }
+-
+-  fresh.input_buffer_read_offset = data.input_buffer_read_offset;
+-  fresh.error_status = data.error_status;
+-  fresh.current_buffer = data.current_buffer;
+-  fresh.output_buffer_read_offset = data.output_buffer_read_offset;
+-
+-  fresh.Store(context_ptr);
+ }
+ 
+ void XmaContext::Consume(memory::RingBuffer* output_rb, const XMA_CONTEXT_DATA* data) {
+diff --git a/src/codegen/builders/vector.cpp b/src/codegen/builders/vector.cpp
+index cbdd7f7..d987381 100644
+--- a/src/codegen/builders/vector.cpp
++++ b/src/codegen/builders/vector.cpp
+@@ -1098,14 +1098,16 @@ bool build_vpkuhus(BuilderContext& ctx) {
+   // NOTE(tomc): _mm_packus_epi16 treats inputs as signed, so we need custom saturation for
+   // unsigned. Unsigned halfwords >= 0x8000 would be interpreted as negative and clamped to 0
+   // instead of 0xFF.
++  // The destination may alias a source (e.g. "vpkuhus v11,v0,v11" in Lost Odyssey's CPU
++  // skinning), so build the result in the temporary and assign it at the end instead of
++  // writing the destination element by element while the source is still being read.
+   for (size_t i = 0; i < 8; i++) {
+-    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];",
+-                ctx.v(ctx.insn.operands[0]), 15 - i, ctx.v(ctx.insn.operands[1]), 7 - i,
+-                ctx.v(ctx.insn.operands[1]), 7 - i);
+-    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];",
+-                ctx.v(ctx.insn.operands[0]), 7 - i, ctx.v(ctx.insn.operands[2]), 7 - i,
+-                ctx.v(ctx.insn.operands[2]), 7 - i);
++    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];", ctx.v_temp(),
++                15 - i, ctx.v(ctx.insn.operands[1]), 7 - i, ctx.v(ctx.insn.operands[1]), 7 - i);
++    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];", ctx.v_temp(),
++                7 - i, ctx.v(ctx.insn.operands[2]), 7 - i, ctx.v(ctx.insn.operands[2]), 7 - i);
+   }
++  ctx.println("\t{} = {};", ctx.v(ctx.insn.operands[0]), ctx.v_temp());
+   return true;
+ }
+ 
+@@ -1125,15 +1127,17 @@ bool build_vpkuwus(BuilderContext& ctx) {
+   // Vector Pack Unsigned Word Unsigned Saturate
+ 
+   // NOTE(tomc): _mm_packus_epi32 treats inputs as signed, so we need custom saturation for unsigned
+-  // Saturate each u32 to [0, 0xFFFF], then pack to u16
++  // Saturate each u32 to [0, 0xFFFF], then pack to u16. Same aliasing hazard as vpkuhus:
++  // build the result in the temporary.
+   for (size_t i = 0; i < 4; i++) {
+     ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (uint16_t){}.u32[{}];",
+-                ctx.v(ctx.insn.operands[0]), 7 - i, ctx.v(ctx.insn.operands[1]), 3 - i,
++                ctx.v_temp(), 7 - i, ctx.v(ctx.insn.operands[1]), 3 - i,
+                 ctx.v(ctx.insn.operands[1]), 3 - i);
+     ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (uint16_t){}.u32[{}];",
+-                ctx.v(ctx.insn.operands[0]), 3 - i, ctx.v(ctx.insn.operands[2]), 3 - i,
++                ctx.v_temp(), 3 - i, ctx.v(ctx.insn.operands[2]), 3 - i,
+                 ctx.v(ctx.insn.operands[2]), 3 - i);
+   }
++  ctx.println("\t{} = {};", ctx.v(ctx.insn.operands[0]), ctx.v_temp());
+   return true;
+ }
+ 
+diff --git a/src/kernel/crt/threading.cpp b/src/kernel/crt/threading.cpp
+index 22ba2fb..fea2de0 100644
+--- a/src/kernel/crt/threading.cpp
++++ b/src/kernel/crt/threading.cpp
+@@ -116,6 +116,7 @@ u32 ConvertFiberToThread_impl(XThread* thread) {
+   // Must null main_fiber_ AFTER Destroy() above to avoid double-free
+   // in ~XThread, which also calls main_fiber_->Destroy() if non-null.
+   thread->set_main_fiber(nullptr);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kFiberFree);
+   mem->SystemHeapFree(fiber_addr);
+ 
+   return 1;  // TRUE
+@@ -139,6 +140,7 @@ u32 ConvertThreadToFiber_entry(mapped_void lpParameter) {
+ 
+   // Allocate guest fiber context buffer
+   uint32_t buf_addr = mem->SystemHeapAlloc(sizeof(X_FIBER_CONTEXT));
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kFiberAlloc);
+   if (!buf_addr) {
+     kthread->last_error = 8;  // ERROR_NOT_ENOUGH_MEMORY
+     return 0;
+diff --git a/src/kernel/xam/xam_info.cpp b/src/kernel/xam/xam_info.cpp
+index 1fda053..0e6fad4 100644
+--- a/src/kernel/xam/xam_info.cpp
++++ b/src/kernel/xam/xam_info.cpp
+@@ -299,12 +299,14 @@ u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
+   // Allocate from the heap. Not sure why XAM does this specially, perhaps
+   // it keeps stuff in a separate heap?
+   uint32_t ptr = REX_KERNEL_MEMORY()->SystemHeapAlloc(size);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kXamAlloc);
+   *out_ptr = ptr;
+ 
+   return X_ERROR_SUCCESS;
+ }
+ 
+ u32 XamFree_entry(mapped_u32 ptr) {
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kXamFree);
+   REX_KERNEL_MEMORY()->SystemHeapFree(ptr.guest_address());
+ 
+   return X_ERROR_SUCCESS;
+diff --git a/src/kernel/xboxkrnl/xboxkrnl_memory.cpp b/src/kernel/xboxkrnl/xboxkrnl_memory.cpp
+index 8684eda..bc3e44f 100644
+--- a/src/kernel/xboxkrnl/xboxkrnl_memory.cpp
++++ b/src/kernel/xboxkrnl/xboxkrnl_memory.cpp
+@@ -172,6 +172,13 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
+     heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down, &address);
+   }
+   if (!address) {
++    // DIAGNOSTICO (27-sep-2026): ver MmAllocatePhysicalMemoryEx.
++    REXKRNL_WARN(
++        "NtAllocateVirtualMemory FALLO: base {:#x} tamano {:#x} tipo {:#x} protect {:#x} "
++        "(pagina {} KB) | libres en ese monton: {} de {} paginas",
++        adjusted_base, adjusted_size, uint32_t(alloc_type), uint32_t(protect_bits),
++        page_size >> 10, heap ? heap->unreserved_page_count() : 0u,
++        heap ? heap->total_page_count() : 0u);
+     // Failed - assume no memory available.
+     return X_STATUS_NO_MEMORY;
+   }
+@@ -197,6 +204,13 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
+   *region_size_ptr = adjusted_size;
+   REXKRNL_IMPORT_RESULT("NtAllocateVirtualMemory", "0x0 addr={:#x} size={:#x}", address,
+                         adjusted_size);
++  // DIAGNOSTICO (28-sep-2026, Lost Odyssey): la tabla de bancos de XACT acaba
++  // apuntando a 0x10006600 tras el jefe Mack. Se anota toda reserva que toque la
++  // zona 0x08000000-0x30000000 del monton de 4 KB, que el juego casi no usa.
++  if (address < 0x30000000u && address + adjusted_size > 0x08000000u) {
++    REXKRNL_INFO("NtAllocateVirtualMemory zona vigilada: {:#x}-{:#x} ({:#x} bytes) tipo {:#x}",
++                 address, address + adjusted_size, adjusted_size, uint32_t(alloc_type));
++  }
+   return X_STATUS_SUCCESS;
+ }
+ 
+@@ -288,6 +302,12 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
+   *base_addr_ptr = base_addr_value;
+   *region_size_ptr = region_size_value;
+   REXKRNL_IMPORT_RESULT("NtFreeVirtualMemory", "0x0");
++  // DIAGNOSTICO (28-sep-2026): ver NtAllocateVirtualMemory.
++  if (base_addr_value < 0x30000000u && base_addr_value + region_size_value > 0x08000000u) {
++    REXKRNL_INFO("NtFreeVirtualMemory zona vigilada: {:#x}-{:#x} ({:#x} bytes) tipo {:#x}",
++                 base_addr_value, base_addr_value + region_size_value, region_size_value,
++                 uint32_t(free_type));
++  }
+   return X_STATUS_SUCCESS;
+ }
+ 
+@@ -400,6 +420,15 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
+   if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size, adjusted_alignment,
+                         allocation_type, protect, top_down, &base_address)) {
+     // Failed - assume no memory available.
++    // DIAGNOSTICO (27-sep-2026): antes fallaba en silencio, y un juego que no
++    // comprueba el resultado sigue con un puntero nulo y revienta mucho despues,
++    // lejos de aqui. Se avisa siempre: es rarisimo y siempre es importante.
++    REXKRNL_WARN(
++        "MmAllocatePhysicalMemoryEx FALLO: {} bytes (pagina {} KB, alineacion {:#x}) "
++        "rango fisico {:#x}-{:#x} protect {:#x} | libres en ese monton: {} de {} paginas",
++        uint32_t(region_size), page_size >> 10, uint32_t(alignment), uint32_t(min_addr_range),
++        uint32_t(max_addr_range), uint32_t(protect_bits), heap->unreserved_page_count(),
++        heap->total_page_count());
+     return 0;
+   }
+   REXKRNL_IMPORT_RESULT("MmAllocatePhysicalMemoryEx", "addr={:#x}", base_address);
+diff --git a/src/kernel/xboxkrnl/xboxkrnl_rtl.cpp b/src/kernel/xboxkrnl/xboxkrnl_rtl.cpp
+index 8b862fc..e781cf5 100644
+--- a/src/kernel/xboxkrnl/xboxkrnl_rtl.cpp
++++ b/src/kernel/xboxkrnl/xboxkrnl_rtl.cpp
+@@ -144,6 +144,7 @@ void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string
+ 
+ // https://msdn.microsoft.com/en-us/library/ff561899
+ void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kStringFree);
+   if (string->pointer) {
+     REX_KERNEL_MEMORY()->SystemHeapFree(string->pointer);
+   }
+@@ -219,6 +220,7 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
+   X_STATUS result = X_STATUS_SUCCESS;
+   if (alloc_dest) {
+     uint32_t buffer_ptr = REX_KERNEL_MEMORY()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
++    rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kStringAlloc);
+ 
+     memcpy(REX_KERNEL_MEMORY()->TranslateVirtual(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
+     destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
+diff --git a/src/kernel/xboxkrnl/xboxkrnl_threading.cpp b/src/kernel/xboxkrnl/xboxkrnl_threading.cpp
+index 57fd161..d1ef6b4 100644
+--- a/src/kernel/xboxkrnl/xboxkrnl_threading.cpp
++++ b/src/kernel/xboxkrnl/xboxkrnl_threading.cpp
+@@ -1114,6 +1114,7 @@ void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
+   }
+ 
+   uint32_t apc_ptr = mem->SystemHeapAlloc(XAPC::kSize);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kApcAlloc);
+   if (!apc_ptr) {
+     return;
+   }
+diff --git a/src/system/xam/content_manager.cpp b/src/system/xam/content_manager.cpp
+index bd6c797..cd034a1 100644
+--- a/src/system/xam/content_manager.cpp
++++ b/src/system/xam/content_manager.cpp
+@@ -16,6 +16,7 @@
+ 
+ #include <fmt/format.h>
+ 
++#include <rex/cvar.h>
+ #include <rex/filesystem.h>
+ #include <rex/filesystem/devices/host_path_device.h>
+ #include <rex/filesystem/devices/stfs_container_device.h>
+@@ -26,10 +27,54 @@
+ #include <rex/system/xfile.h>
+ #include <rex/system/xobject.h>
+ 
++// Partidas en una carpeta plana (p. ej. SAVE/save00/save.bin) en vez de
++// content_root/<xuid>/<titulo>/00000001/<nombre>. Solo las partidas del titulo
++// en marcha; las cabeceras van en <savegame_root>/.cabeceras/<carpeta>.header.
++REXCVAR_DEFINE_STRING(savegame_root, "", "Content",
++                      "Carpeta plana para las partidas del juego en marcha (vacio = estructura "
++                      "de la consola dentro de content_root)");
++REXCVAR_DEFINE_STRING(savegame_folder_prefix, "", "Content",
++                      "Prefijo en disco de las carpetas de partida: el nombre que da el juego "
++                      "'userNN' se guarda como '<prefijo>NN' (vacio = el nombre del juego)");
++
+ namespace rex {
+ namespace system {
+ namespace xam {
+ 
++namespace {
++
++constexpr const char* kFlatHeaderDirName = ".cabeceras";
++
++std::filesystem::path FlatSavegameRoot() {
++  const std::string root = REXCVAR_GET(savegame_root);
++  return root.empty() ? std::filesystem::path() : rex::to_path(root);
++}
++
++// Nombre del juego ("user00") -> carpeta en disco ("save00") y al reves.
++std::string GameToDiskName(std::string_view name) {
++  const std::string prefix = REXCVAR_GET(savegame_folder_prefix);
++  if (!prefix.empty() && name.size() > 4 && name.substr(0, 4) == "user") {
++    return prefix + std::string(name.substr(4));
++  }
++  return std::string(name);
++}
++
++std::string DiskToGameName(std::string_view name) {
++  const std::string prefix = REXCVAR_GET(savegame_folder_prefix);
++  if (!prefix.empty() && name.size() > prefix.size() && name.substr(0, prefix.size()) == prefix) {
++    return "user" + std::string(name.substr(prefix.size()));
++  }
++  return std::string(name);
++}
++
++}  // namespace
++
++bool ContentManager::UsesFlatSavegames(XContentType content_type, uint32_t title_id) const {
++  if (content_type != XContentType::kSavedGame || FlatSavegameRoot().empty()) return false;
++  if (title_id == kCurrentlyRunningTitleId) title_id = kernel_state_->title_id();
++  return title_id == kernel_state_->title_id();
++}
++
+ static const char* kThumbnailFileName = "__thumbnail.png";
+ 
+ static const char* kGameUserContentDirName = "profile";
+@@ -90,6 +135,9 @@ std::filesystem::path ContentManager::ResolvePackageRoot(uint64_t xuid, XContent
+   if (title_id == kCurrentlyRunningTitleId) {
+     title_id = kernel_state_->title_id();
+   }
++  if (UsesFlatSavegames(content_type, title_id)) {
++    return FlatSavegameRoot();
++  }
+   auto xuid_str = fmt::format("{:016X}", xuid);
+   auto title_id_str = fmt::format("{:08X}", title_id);
+   auto content_type_str = fmt::format("{:08X}", uint32_t(content_type));
+@@ -111,6 +159,9 @@ std::filesystem::path ContentManager::ResolvePackagePath(uint64_t xuid,
+   // Content path:
+   // content_root/xuid/title_id/content_type/data_file_name/
+   auto package_root = ResolvePackageRoot(used_xuid, data.content_type, data.title_id);
++  if (UsesFlatSavegames(data.content_type, data.title_id)) {
++    return package_root / rex::to_path(GameToDiskName(data.file_name()));
++  }
+   return package_root / rex::to_path(data.file_name());
+ }
+ 
+@@ -125,6 +176,11 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
+     xuid = 0;
+   }
+ 
++  if (UsesFlatSavegames(content_type, title_id)) {
++    return FlatSavegameRoot() / kFlatHeaderDirName /
++           rex::to_path(GameToDiskName(file_name) + ".header");
++  }
++
+   auto xuid_str = fmt::format("{:016X}", xuid);
+   auto title_id_str = fmt::format("{:08X}", title_id);
+   auto content_type_str = fmt::format("{:08X}", uint32_t(content_type));
+@@ -148,22 +204,27 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(uint32_t device
+   // Search path:
+   // content_root/xuid/title_id/type_name/*
+   auto package_root = ResolvePackageRoot(xuid, content_type, title_id);
++  const bool flat = UsesFlatSavegames(content_type, title_id);
+   auto file_infos = rex::filesystem::ListFiles(package_root);
+   for (const auto& file_info : file_infos) {
+     if (file_info.type != rex::filesystem::FileInfo::Type::kDirectory) {
+       // Directories only.
+       continue;
+     }
++    std::string name = rex::path_to_utf8(file_info.name);
++    if (flat) {
++      if (!name.empty() && name[0] == '.') continue;  // .cabeceras
++      name = DiskToGameName(name);
++    }
+ 
+     XCONTENT_AGGREGATE_DATA content_data;
+-    if (XSUCCEEDED(ReadContentHeaderFile(rex::path_to_utf8(file_info.name), xuid, title_id,
+-                                         content_type, content_data))) {
++    if (XSUCCEEDED(ReadContentHeaderFile(name, xuid, title_id, content_type, content_data))) {
+       result.emplace_back(std::move(content_data));
+     } else {
+       content_data.device_id = device_id;
+       content_data.content_type = content_type;
+-      content_data.set_display_name(rex::path_to_utf16(file_info.name));
+-      content_data.set_file_name(rex::path_to_utf8(file_info.name));
++      content_data.set_display_name(rex::path_to_utf16(rex::to_path(name)));
++      content_data.set_file_name(name);
+       content_data.title_id = title_id;
+       content_data.xuid = xuid;
+       result.emplace_back(std::move(content_data));
+diff --git a/src/system/xmemory.cpp b/src/system/xmemory.cpp
+index 76cc877..4f59927 100644
+--- a/src/system/xmemory.cpp
++++ b/src/system/xmemory.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include <atomic>
+ #include <algorithm>
+ #include <cstring>
+ #include <utility>
+@@ -690,7 +691,37 @@ void Memory::EnablePhysicalMemoryAccessCallbacks(uint32_t physical_address, uint
+                                          enable_invalidation_notifications, enable_data_providers);
+ }
+ 
++namespace {
++
++// Ver SystemHeapOrigin en xmemory.h (diagnostico temporal de fugas).
++std::atomic<uint32_t> g_origenes[size_t(SystemHeapOrigin::kCount)] = {};
++std::atomic<uint32_t> g_sistema_reservas{0};
++std::atomic<uint32_t> g_sistema_liberaciones{0};
++
++}  // namespace
++
++void SystemHeapNote(SystemHeapOrigin origin) {
++  g_origenes[size_t(origin)].fetch_add(1, std::memory_order_relaxed);
++}
++
+ uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment, uint32_t system_heap_flags) {
++  const uint32_t reservas = g_sistema_reservas.fetch_add(1, std::memory_order_relaxed) + 1;
++  if ((reservas % 8192) == 0) {
++    const auto v = [](SystemHeapOrigin o) {
++      return g_origenes[size_t(o)].load(std::memory_order_relaxed);
++    };
++    REXSYS_INFO(
++        "heap de sistema: {} reservas / {} liberaciones | hilo pcr {} tls {} scratch {} "
++        "libera {} | xam {}/{} | apc {}/{} | fibra {}/{} | objeto {}/{} | cadena {}/{}",
++        reservas, g_sistema_liberaciones.load(std::memory_order_relaxed),
++        v(SystemHeapOrigin::kThreadPcr), v(SystemHeapOrigin::kThreadTls),
++        v(SystemHeapOrigin::kThreadScratch), v(SystemHeapOrigin::kThreadFree),
++        v(SystemHeapOrigin::kXamAlloc), v(SystemHeapOrigin::kXamFree),
++        v(SystemHeapOrigin::kApcAlloc), v(SystemHeapOrigin::kApcFree),
++        v(SystemHeapOrigin::kFiberAlloc), v(SystemHeapOrigin::kFiberFree),
++        v(SystemHeapOrigin::kObjectNative), v(SystemHeapOrigin::kObjectFree),
++        v(SystemHeapOrigin::kStringAlloc), v(SystemHeapOrigin::kStringFree));
++  }
+   // TODO(benvanik): lightweight pool.
+   bool is_physical = !!(system_heap_flags & memory::kSystemHeapPhysical);
+   auto heap = LookupHeapByType(is_physical, 4096);
+@@ -708,6 +739,7 @@ void Memory::SystemHeapFree(uint32_t address, uint32_t* out_region_size) {
+   if (!address) {
+     return;
+   }
++  g_sistema_liberaciones.fetch_add(1, std::memory_order_relaxed);
+   // TODO(benvanik): lightweight pool.
+   auto heap = LookupHeap(address);
+   heap->Release(address, out_region_size);
+diff --git a/src/system/xobject.cpp b/src/system/xobject.cpp
+index d358f39..1110522 100644
+--- a/src/system/xobject.cpp
++++ b/src/system/xobject.cpp
+@@ -61,6 +61,7 @@ XObject::~XObject() {
+       memory()->SystemHeapFree(header->object_type_ptr);
+     }
+ 
++    rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kObjectFree);
+     memory()->SystemHeapFree(ptr);
+   }
+ }
+@@ -325,6 +326,7 @@ uint8_t* XObject::CreateNative(uint32_t size) {
+   uint32_t total_size = size + sizeof(X_OBJECT_HEADER);
+ 
+   auto mem = memory()->SystemHeapAlloc(total_size);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kObjectNative);
+   if (!mem) {
+     // Out of memory!
+     return nullptr;
+diff --git a/src/system/xthread.cpp b/src/system/xthread.cpp
+index 77bce25..8f12494 100644
+--- a/src/system/xthread.cpp
++++ b/src/system/xthread.cpp
+@@ -11,7 +11,11 @@
+ 
+ #include <algorithm>
+ #include <atomic>
++#include <chrono>
+ #include <cstring>
++#include <mutex>
++#include <utility>
++#include <vector>
+ 
+ #include <fmt/format.h>
+ 
+@@ -87,6 +91,65 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_t
+   kernel_state_->RegisterThread(this);
+ }
+ 
++namespace {
++
++// FUGA ARREGLADA (27-sep-2026). XThread::Exit() y Terminate() se quedaban con
++// una referencia al objeto (`auto self = retain_object(this)`) para que
++// ReleaseHandle() no lo borrase mientras la funcion seguia viva... pero
++// justo despues llaman a Thread::Exit(), QUE NO VUELVE: el destructor de `self`
++// no se ejecutaba nunca y cada hilo que terminaba dejaba para siempre su
++// objeto, su X_KTHREAD, su PCR, su TLS y su scratch. Con este juego, que crea
++// ~20 hilos por segundo, eso agota en minutos los 256 MB de la ventana de
++// sistema y el siguiente ExCreateThread falla (el juego no lo comprueba y se
++// cierra).
++//
++// Arreglo: en vez de soltar la referencia ahi (peligroso: borraria el objeto
++// desde dentro de si mismo), se aparca en esta lista con la hora, y la barre
++// otro hilo pasados un par de segundos, cuando el hilo que murio ya no existe.
++struct HiloMuerto {
++  object_ref<XThread> hilo;
++  std::chrono::steady_clock::time_point momento;
++};
++
++std::mutex g_muertos_mutex;
++
++// A proposito con `new` y sin destructor: si la lista se destruyese al terminar
++// el proceso soltaria referencias DESPUES de que el kernel ya no exista, y
++// ~XThread (que llama a UnregisterThread) reventaria al salir.
++std::vector<HiloMuerto>* Muertos() {
++  static auto* lista = new std::vector<HiloMuerto>();
++  return lista;
++}
++
++constexpr auto kEsperaAntesDeBorrar = std::chrono::seconds(2);
++
++void BarrerHilosMuertos() {
++  // Las referencias se sueltan FUERA del mutex: soltarlas puede ejecutar
++  // ~XThread, que toca el kernel y podria volver a entrar aqui.
++  std::vector<object_ref<XThread>> sueltos;
++  {
++    std::lock_guard<std::mutex> lock(g_muertos_mutex);
++    auto* lista = Muertos();
++    const auto ahora = std::chrono::steady_clock::now();
++    for (size_t i = 0; i < lista->size();) {
++      if (ahora - (*lista)[i].momento >= kEsperaAntesDeBorrar) {
++        sueltos.push_back(std::move((*lista)[i].hilo));
++        lista->erase(lista->begin() + i);
++      } else {
++        ++i;
++      }
++    }
++  }
++}
++
++void EnterrarHilo(object_ref<XThread> hilo) {
++  BarrerHilosMuertos();
++  std::lock_guard<std::mutex> lock(g_muertos_mutex);
++  Muertos()->push_back(HiloMuerto{std::move(hilo), std::chrono::steady_clock::now()});
++}
++
++}  // namespace
++
+ XThread::~XThread() {
+   if (main_fiber_) {
+     main_fiber_->Destroy();
+@@ -101,6 +164,7 @@ XThread::~XThread() {
+   kernel_state_->memory()->SystemHeapFree(scratch_address_);
+   kernel_state_->memory()->SystemHeapFree(tls_static_address_);
+   kernel_state_->memory()->SystemHeapFree(pcr_address_);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kThreadFree);
+   FreeStack();
+ 
+   if (thread_) {
+@@ -327,6 +391,9 @@ void XThread::FreeStack() {
+ }
+ 
+ X_STATUS XThread::Create() {
++  // Aprovechamos cada creacion para enterrar de verdad a los que murieron.
++  BarrerHilosMuertos();
++
+   // Thread kernel object.
+   if (!CreateNative<X_KTHREAD>()) {
+     REXSYS_WARN("Unable to allocate thread object");
+@@ -342,6 +409,7 @@ X_STATUS XThread::Create() {
+   // This is used by interrupts/APCs/etc so we can round-trip pointers through.
+   scratch_size_ = 4 * 16;
+   scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kThreadScratch);
+ 
+   // Allocate TLS block.
+   // Games will specify a certain number of 4b slots that each thread will get.
+@@ -365,6 +433,7 @@ X_STATUS XThread::Create() {
+   uint32_t tls_slot_size = tls_slots * 4;
+   tls_total_size_ = tls_slot_size + tls_extended_size;
+   tls_static_address_ = memory()->SystemHeapAlloc(tls_total_size_);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kThreadTls);
+   tls_dynamic_address_ = tls_static_address_ + tls_extended_size;
+   if (!tls_static_address_) {
+     REXSYS_WARN("Unable to allocate thread local storage block");
+@@ -395,6 +464,7 @@ X_STATUS XThread::Create() {
+   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
+   // structure.
+   pcr_address_ = memory()->SystemHeapAlloc(0x2D8);
++  rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kThreadPcr);
+   if (!pcr_address_) {
+     REXSYS_WARN("Unable to allocate thread state block");
+     return X_STATUS_NO_MEMORY;
+@@ -536,6 +606,10 @@ X_STATUS XThread::Exit(int exit_code) {
+   running_ = false;
+   ReleaseHandle();
+ 
++  // Thread::Exit() no vuelve, asi que el destructor de `self` no correria nunca
++  // y el objeto quedaria vivo para siempre: se aparca para que lo borre otro.
++  EnterrarHilo(std::move(self));
++
+   // NOTE: this does not return!
+   rex::thread::Thread::Exit(exit_code);
+   return X_STATUS_SUCCESS;
+@@ -558,6 +632,7 @@ X_STATUS XThread::Terminate(int exit_code) {
+     auto self = retain_object(this);
+     FreeStack();
+     ReleaseHandle();
++    EnterrarHilo(std::move(self));
+     rex::thread::Thread::Exit(exit_code);
+   } else {
+     thread_->Terminate(exit_code);
+@@ -705,6 +780,7 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint3
+       runtime::ThreadState::Get() ? runtime::current_ppc_context() : thread_state_->context();
+ 
+   if (!kernel::xboxkrnl::xeKeInsertQueueApc(apc, arg1, arg2, 0, queue_ctx)) {
++    rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kApcFree);
+     memory()->SystemHeapFree(apc_ptr);
+     REXSYS_ERROR(
+         "EnqueueApc: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
+@@ -753,6 +829,7 @@ void XThread::DeliverAPCs() {
+         REXSYS_ERROR("DeliverAPCs: kernel_routine {:08X} not found", uint32_t(apc->kernel_routine));
+       }
+     } else {
++      rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kApcFree);
+       mem->SystemHeapFree(apc_ptr);
+       needs_freeing = false;
+     }
+@@ -776,6 +853,7 @@ void XThread::DeliverAPCs() {
+                  normal_context, arg1, arg2);
+ 
+     if (needs_freeing) {
++      rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kApcFree);
+       mem->SystemHeapFree(apc_ptr);
+     }
+ 
+@@ -821,6 +899,7 @@ void XThread::RundownAPCs() {
+       }
+ 
+       if (needs_freeing) {
++        rex::memory::SystemHeapNote(rex::memory::SystemHeapOrigin::kApcFree);
+         mem->SystemHeapFree(apc_ptr);
+       }
+ 
+diff --git a/src/ui/vulkan/vulkan_device.cpp b/src/ui/vulkan/vulkan_device.cpp
+index 8197bb4..d67556b 100644
+--- a/src/ui/vulkan/vulkan_device.cpp
++++ b/src/ui/vulkan/vulkan_device.cpp
+@@ -210,6 +210,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
+   bool ext_1_3_EXT_shader_demote_to_helper_invocation = false;
+   bool ext_1_3_KHR_dynamic_rendering = false;
+   bool ext_EXT_non_seamless_cube_map = false;
++  bool ext_NVX_binary_import = false;
++  bool ext_NVX_image_view_handle = false;
++  bool ext_KHR_push_descriptor = false;
+   if (with_gpu_emulation) {
+     // #15.
+     XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(KHR_sampler_mirror_clamp_to_edge, 1, 2)
+@@ -241,6 +244,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
+       // #237.
+       XE_UI_VULKAN_STRUCT_PROMOTED_EXTENSION(KHR_spirv_1_4, 1, 2)
+     }
++    // Fork (odisea): las que pide NVIDIA NGX (DLSS) en Vulkan, si las hay
++    // (NVSDK_NGX_VULKAN_RequiredExtensions; bufferDeviceAddress va como
++    // funcion de Vulkan 1.2 mas abajo).
++    XE_UI_VULKAN_LOCAL_EXTENSION(NVX_binary_import)
++    XE_UI_VULKAN_LOCAL_EXTENSION(NVX_image_view_handle)
++    XE_UI_VULKAN_LOCAL_EXTENSION(KHR_push_descriptor)
+   }
+ 
+ #undef XE_UI_VULKAN_STRUCT_EXTENSION
+@@ -650,6 +659,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
+       XE_UI_VULKAN_FEATURE_2(features_1_2, samplerMirrorClampToEdge);
+       XE_UI_VULKAN_FEATURE_2(features_1_2, uniformBufferStandardLayout);
+       XE_UI_VULKAN_FEATURE_2(features_1_2, scalarBlockLayout);
++      // Fork (odisea): para NVIDIA NGX (DLSS).
++      features_1_2.enabled.bufferDeviceAddress = features_1_2.supported.bufferDeviceAddress;
+     }
+   } else {
+     if (ext_1_2_KHR_sampler_mirror_clamp_to_edge) {

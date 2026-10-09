@@ -1,6 +1,4 @@
-# Este repositorio es SOLO documentacion y capturas. Nada del juego, nada
-# compilable, nada compilado. Lo de abajo es un cinturon de seguridad para que
-# no se cuele nada por un "git add -A" descuidado.
+# Seguridad: nada del juego, nada generado a partir de el, nada compilado, ninguna credencial.
 
 # Datos del juego y ejecutables de consola
 *.xex
@@ -8,21 +6,25 @@
 *.god
 *.xcp
 *.xzp
-*.bin
 *.dat
 disc*/
 data/
 savedata/
 dump/
+isos/
 
-# Codigo fuente y binarios del port (no se publican todavia)
-*.c
-*.cc
-*.cpp
-*.h
-*.hpp
-*.inl
-*.rc
+# Codigo generado a partir del juego (recompilacion): NUNCA se publica
+generated/
+**/generated/
+
+# Packs de texturas y derivados del juego (solo ui.lopack cifrado va en el repo)
+*.lopack
+!ui_assets/ui.lopack
+*.dds
+textures/
+ui_assets/src/
+
+# Binarios y artefactos de compilacion
 *.exe
 *.dll
 *.lib
@@ -30,27 +32,29 @@ dump/
 *.pdb
 *.so
 *.a
-CMakeLists.txt
-CMakePresets.json
-*.bat
-*.sh
-*.toml
-
-# Shaders y artefactos de compilacion
+*.map
 *.spv
 *.dxbc
 *.cso
+*.xpso
+*.bin
 out/
 build/
-generated/
 cache/
+release/
+__pycache__/
+
+# Credenciales y claves
+ia.ini
+*.pem
+*.key
 
 # Registros y temporales
 *.log
+*.err
 *.tmp
+src_backup*/
 Thumbs.db
 desktop.ini
 .DS_Store
-
-# Material de trabajo local, no se publica
 .mio/
