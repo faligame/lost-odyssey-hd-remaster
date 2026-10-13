@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "version": "0.1.0",
-  "size": 83181808,
-  "sha256": "1f0072a33f75bde9c98e3dc7b67d6a3b24804f3766d387cdaee8d46da7b5f4ec",
-  "url": "https://github.com/faligame/lost-odyssey-hd-remaster/releases/download/v0.1.0/LostOdysseyHD-0.1.0-win64.zip",
-  "notes_en": "AMD FSR 3.1 as well as DLSS (works on any GPU), Controls tab with keyboard and mouse alongside the controller, automatic button prompts (Xbox, PlayStation, Switch, Steam Deck, keyboard), dedicated GPU on laptops and HD logo/text on clean installs.",
-  "notes_es": "AMD FSR 3.1 además de DLSS (funciona en cualquier tarjeta), pestaña Controles con teclado y ratón a la vez que el mando, glifos de botones automáticos (Xbox, PlayStation, Switch, Steam Deck, teclado), gráfica dedicada en portátiles y logo/textos en HD en instalaciones limpias."
+  "version": "0.2.0",
+  "size": 83180246,
+  "sha256": "7c22790cfda8756943e6edfb2aa41b58201aca1571755b426cd25e7e1960420e",
+  "url": "https://github.com/faligame/lost-odyssey-hd-remaster/releases/download/v0.2.0/LostOdysseyHD-0.2.0-win64.zip",
+  "notes_en": "- Random battle rate: off, 25%, 50%, 75% or 100%.\n- Battle experience and gold multipliers: x1 to x5.\n- Easy ring: the attack ring comes out Perfect on its own, without pressing anything.\n- Win battle: a controller button (R3 by default) or F8 wins the battle instantly, with its EXP, gold and items.\n- Turbo only speeds up the map and battles: it pauses by itself in videos and cutscenes so the audio stays in sync.",
+  "notes_es": "- Batallas aleatorias con frecuencia ajustable: desactivadas, 25 %, 50 %, 75 % o 100 %.\n- Multiplicadores de experiencia y de oro de los combates: x1 a x5.\n- Anillo fácil: el anillo de ataque sale Perfecto solo, sin pulsar nada.\n- Ganar combate: un botón del mando (R3 por defecto) o F8 gana el combate al instante, con su EXP, oro y objetos.\n- El turbo solo acelera en el mapa y en los combates: se para solo en los vídeos y en las escenas para que el sonido no se desincronice."
 }
