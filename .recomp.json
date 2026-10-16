@@ -6,6 +6,6 @@
   "type": "recomp",
   "project": "Lost Odyssey HD Remaster",
   "status": "playable",
-  "targets": ["Windows", "Linux", "Steam Deck"],
+  "targets": ["Windows", "Steam Deck"],
   "toolchain": "ReXGlue"
 }
