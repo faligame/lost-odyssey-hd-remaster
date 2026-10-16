@@ -1,0 +1,11 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "Lost Odyssey",
+  "wikidata": "Q558753",
+  "system": "Xbox 360",
+  "type": "recomp",
+  "project": "Lost Odyssey HD Remaster",
+  "status": "playable",
+  "targets": ["Windows", "Linux", "Steam Deck"],
+  "toolchain": "ReXGlue"
+}
