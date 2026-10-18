@@ -1,13 +1,22 @@
 # Lost Odyssey HD Remaster
 
+> [!IMPORTANT]
+> **This project has been cancelled and archived (October 2026).**
+>
+> Our friends at **[Lost Odyssey Recomp](https://github.com/freefrank/LostOdysseyRecomp)** have already achieved what we were aiming for, and more: a native port that is already at version 1.0, runs on Windows, Linux, macOS and Android, and has DLC, HD textures, DLSS/FSR/XeSS, HDR, high frame rates and an active community. **Please play and support their port.**
+>
+> Carrying on would be a waste of time. AI helping us build projects is one thing; using it to duplicate them and fill the internet with near-identical projects that add nothing is another. We would rather put our effort where it is useful.
+>
+> The repository stays online, read-only, for reference. There will be no more updates or support. Our extras (HD texture pack, translations of the menus into Spanish, French, German and Italian, button prompts...) are offered to the Lost Odyssey Recomp team in case they find them useful.
+>
+> Thank you to everyone who tested it and reported issues.
+
 **Lost Odyssey, running natively on PC. Up to 4K, 60 fps, and without the crashes it is known for.**
 
 *[Léeme en español](README.es.md)*
 
 ![Lost Odyssey HD Remaster](media/hero.png)
 
-> **Status:** v0.0.1 test build — playable, with many known bugs · source open (MIT) · bring your own discs
-> Downloads will appear under [Releases](../../releases) when the first build is published. See the [FAQ](docs/faq.md).
 
 Lost Odyssey came out on Xbox 360 in 2007 and never left it. This project rebuilds the original game code as a real Windows program — **not an emulator** — and then gives it what a remaster would.
 
